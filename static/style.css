@@ -545,6 +545,43 @@ code {
 }
 .empty-icon { font-size: 40px; margin-bottom: 12px; }
 
+.input-row { display: flex; align-items: center; gap: 8px; }
+.input-row .input { flex: 1; }
+
+.add-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.add-row .input, .add-row .select { flex: 1; min-width: 120px; }
+
+.lv-role-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.lv-role-row:last-child { border-bottom: none; }
+
+.badge-level {
+  background: rgba(88,101,242,.2);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  white-space: nowrap;
+}
+
+.multiplier-badge {
+  background: rgba(240,178,50,.15);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mb-1 { margin-bottom: 6px; }
+.mb-2 { margin-bottom: 10px; }
+.mb-4 { margin-bottom: 16px; }
+.mt-2 { margin-top: 10px; }
+
 .btn-sm-outline {
   padding: 5px 12px;
   background: transparent;

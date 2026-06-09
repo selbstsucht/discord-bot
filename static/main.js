@@ -258,6 +258,152 @@ async function deleteSrButton(gid, mid, bid) {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
+/* ── Leveling ────────────────────────────────────────────────── */
+
+function toggleLvChannel() {
+  const mode = document.getElementById('lv-mode').value;
+  document.getElementById('lv-channel-row').style.display = mode === 'custom' ? '' : 'none';
+}
+
+async function saveLvGeneral(gid) {
+  const min = parseInt(document.getElementById('lv-xp-min').value);
+  const max = parseInt(document.getElementById('lv-xp-max').value);
+  if (min > max) { showToast('XP Min darf nicht größer als Max sein.', 'error'); return; }
+  try {
+    await api('POST', `/api/server/${gid}/leveling/general`, {
+      enabled:  document.getElementById('lv-enabled').checked,
+      xp_min:   min,
+      xp_max:   max,
+      cooldown: parseInt(document.getElementById('lv-cooldown').value),
+    });
+    showToast('Leveling-Einstellungen gespeichert!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function saveLvLevelup(gid) {
+  try {
+    await api('POST', `/api/server/${gid}/leveling/levelup`, {
+      levelup_mode:       document.getElementById('lv-mode').value,
+      levelup_channel_id: document.getElementById('lv-channel')?.value || null,
+      levelup_message:    document.getElementById('lv-msg').value,
+      role_stack:         document.getElementById('lv-stack').checked,
+    });
+    showToast('Level-Up Einstellungen gespeichert!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function addLvRole(gid) {
+  const level   = document.getElementById('lv-role-level').value;
+  const role_id = document.getElementById('lv-role-select').value;
+  if (!level || !role_id) { showToast('Level und Rolle auswählen.', 'error'); return; }
+  try {
+    const res = await api('POST', `/api/server/${gid}/leveling/level-roles`, { level: parseInt(level), role_id });
+    const roleName = document.querySelector(`#lv-role-select option[value="${role_id}"]`)?.textContent || role_id;
+    const row = document.createElement('div');
+    row.className = 'lv-role-row'; row.id = `lvr-${res.id}`;
+    row.innerHTML = `<span class="badge badge-level">Level ${level}</span><span class="role-chip">${roleName}</span><button class="btn btn-sm btn-danger" onclick="deleteLvRole('${gid}',${res.id})">×</button>`;
+    document.getElementById('lv-roles-list').appendChild(row);
+    document.getElementById('lv-role-level').value = '';
+    document.getElementById('lv-role-select').value = '';
+    showToast('Level-Rolle hinzugefügt!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteLvRole(gid, id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/leveling/level-roles/${id}`);
+    document.getElementById(`lvr-${id}`)?.remove();
+    showToast('Level-Rolle entfernt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function addXpMr(gid) {
+  const role_id    = document.getElementById('xpmr-role').value;
+  const multiplier = document.getElementById('xpmr-mult').value;
+  if (!role_id) { showToast('Bitte eine Rolle wählen.', 'error'); return; }
+  try {
+    const res = await api('POST', `/api/server/${gid}/leveling/xp-mult-roles`, { role_id, multiplier: parseFloat(multiplier) });
+    const name = document.querySelector(`#xpmr-role option[value="${role_id}"]`)?.textContent || role_id;
+    const row = document.createElement('div');
+    row.className = 'lv-role-row'; row.id = `xpmr-${res.id}`;
+    row.innerHTML = `<span class="role-chip">${name}</span><span class="multiplier-badge">×${multiplier}</span><button class="btn btn-sm btn-danger" onclick="deleteXpMr('${gid}',${res.id})">×</button>`;
+    document.getElementById('xp-mr-list').appendChild(row);
+    showToast('Multiplikator hinzugefügt!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteXpMr(gid, id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/leveling/xp-mult-roles/${id}`);
+    document.getElementById(`xpmr-${id}`)?.remove();
+    showToast('Multiplikator entfernt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function addXpMc(gid) {
+  const channel_id = document.getElementById('xpmc-ch').value;
+  const multiplier = document.getElementById('xpmc-mult').value;
+  if (!channel_id) { showToast('Bitte einen Channel wählen.', 'error'); return; }
+  try {
+    const res = await api('POST', `/api/server/${gid}/leveling/xp-mult-channels`, { channel_id, multiplier: parseFloat(multiplier) });
+    const name = document.querySelector(`#xpmc-ch option[value="${channel_id}"]`)?.textContent || channel_id;
+    const row = document.createElement('div');
+    row.className = 'lv-role-row'; row.id = `xpmc-${res.id}`;
+    row.innerHTML = `<span class="badge badge-channel">${name}</span><span class="multiplier-badge">×${multiplier}</span><button class="btn btn-sm btn-danger" onclick="deleteXpMc('${gid}',${res.id})">×</button>`;
+    document.getElementById('xp-mc-list').appendChild(row);
+    showToast('Channel-Multiplikator hinzugefügt!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteXpMc(gid, id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/leveling/xp-mult-channels/${id}`);
+    document.getElementById(`xpmc-${id}`)?.remove();
+    showToast('Multiplikator entfernt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function addNoXpCh(gid, sel) {
+  const channel_id = sel.value; if (!channel_id) return; sel.value = '';
+  try {
+    const res = await api('POST', `/api/server/${gid}/leveling/no-xp-channels`, { channel_id });
+    const name = document.querySelector(`#noxpch-add option[value="${channel_id}"]`)?.textContent || channel_id;
+    const chip = document.createElement('span');
+    chip.className = 'role-chip'; chip.id = `noxpch-${res.id}`;
+    chip.style.cssText = 'background:var(--bg4);color:var(--text1)';
+    chip.innerHTML = `${name}<button class="chip-remove" onclick="deleteNoXpCh('${gid}',${res.id})">×</button>`;
+    document.getElementById('no-xp-ch-list').appendChild(chip);
+    showToast('No-XP Channel hinzugefügt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteNoXpCh(gid, id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/leveling/no-xp-channels/${id}`);
+    document.getElementById(`noxpch-${id}`)?.remove();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function addNoXpRo(gid, sel) {
+  const role_id = sel.value; if (!role_id) return; sel.value = '';
+  try {
+    const res = await api('POST', `/api/server/${gid}/leveling/no-xp-roles`, { role_id });
+    const name = document.querySelector(`#noxpro-add option[value="${role_id}"]`)?.textContent || role_id;
+    const chip = document.createElement('span');
+    chip.className = 'role-chip'; chip.id = `noxpro-${res.id}`;
+    chip.innerHTML = `${name}<button class="chip-remove" onclick="deleteNoXpRo('${gid}',${res.id})">×</button>`;
+    document.getElementById('no-xp-ro-list').appendChild(chip);
+    showToast('No-XP Rolle hinzugefügt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteNoXpRo(gid, id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/leveling/no-xp-roles/${id}`);
+    document.getElementById(`noxpro-${id}`)?.remove();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
 /* ── Util ────────────────────────────────────────────────────── */
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

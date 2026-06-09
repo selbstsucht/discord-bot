@@ -1,6 +1,6 @@
 import json
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, ForeignKey, UniqueConstraint, Float
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -72,6 +72,70 @@ class SelfRoleButton(Base):
     emoji           = Column(String, nullable=True)
     style           = Column(String, default='primary')
     sr_message      = relationship('SelfRoleMessage', back_populates='buttons')
+
+
+# ── Leveling ──────────────────────────────────────────────────────────────────
+
+class LevelConfig(Base):
+    __tablename__ = 'level_configs'
+    guild_id           = Column(String, primary_key=True)
+    enabled            = Column(Boolean, default=False)
+    xp_min             = Column(Integer, default=15)
+    xp_max             = Column(Integer, default=25)
+    cooldown           = Column(Integer, default=60)
+    levelup_mode       = Column(String, default='current')  # disabled/current/custom/dm
+    levelup_channel_id = Column(String, nullable=True)
+    levelup_message    = Column(Text, default='🎉 {user} hat **Level {level}** erreicht!')
+    role_stack         = Column(Boolean, default=True)
+
+
+class UserLevel(Base):
+    __tablename__ = 'user_levels'
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id   = Column(String, nullable=False)
+    user_id    = Column(String, nullable=False)
+    xp         = Column(Integer, default=0)
+    level      = Column(Integer, default=0)
+    last_xp_at = Column(Integer, default=0)
+    __table_args__ = (UniqueConstraint('guild_id', 'user_id', name='uq_user_level'),)
+
+
+class LevelRole(Base):
+    __tablename__ = 'level_roles'
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(String, nullable=False)
+    level    = Column(Integer, nullable=False)
+    role_id  = Column(String, nullable=False)
+
+
+class XpMultiplierRole(Base):
+    __tablename__ = 'xp_multiplier_roles'
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id   = Column(String, nullable=False)
+    role_id    = Column(String, nullable=False)
+    multiplier = Column(Float, default=2.0)
+
+
+class XpMultiplierChannel(Base):
+    __tablename__ = 'xp_multiplier_channels'
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id   = Column(String, nullable=False)
+    channel_id = Column(String, nullable=False)
+    multiplier = Column(Float, default=2.0)
+
+
+class NoXpChannel(Base):
+    __tablename__ = 'no_xp_channels'
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id   = Column(String, nullable=False)
+    channel_id = Column(String, nullable=False)
+
+
+class NoXpRole(Base):
+    __tablename__ = 'no_xp_roles'
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(String, nullable=False)
+    role_id  = Column(String, nullable=False)
 
 
 def init_db():

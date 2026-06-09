@@ -28,6 +28,9 @@
       <button class="sidebar-btn" onclick="switchTab('selfroles', this)">
         <span class="sidebar-icon">🏷️</span> Self-Roles
       </button>
+      <button class="sidebar-btn" onclick="switchTab('leveling', this)">
+        <span class="sidebar-icon">⭐</span> Leveling
+      </button>
     </nav>
     <div class="sidebar-footer">
       {% if user.avatar %}
@@ -261,6 +264,207 @@
           <p>Noch keine Self-Role Nachrichten. Erstelle deine erste!</p>
         </div>
         {% endfor %}
+      </div>
+    </section>
+
+    <!-- ── Leveling Tab ───────────────────────────────── -->
+    <section id="tab-leveling" class="tab-section">
+      <div class="section-header">
+        <h2>Leveling-System</h2>
+        <p class="text-muted">Nutzer verdienen XP durch Nachrichten und steigen im Level auf.</p>
+      </div>
+
+      <!-- General -->
+      <div class="card mb-4">
+        <div class="card-row">
+          <label class="toggle-label">
+            <span>Leveling aktiviert</span>
+            <label class="toggle">
+              <input type="checkbox" id="lv-enabled" {% if lv_cfg and lv_cfg.enabled %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+        <div class="card-row">
+          <label class="field-label">XP pro Nachricht</label>
+          <div class="input-row">
+            <input class="input" id="lv-xp-min" type="number" min="1" max="100"
+                   value="{{ lv_cfg.xp_min if lv_cfg else 15 }}" placeholder="Min">
+            <span class="text-muted">bis</span>
+            <input class="input" id="lv-xp-max" type="number" min="1" max="100"
+                   value="{{ lv_cfg.xp_max if lv_cfg else 25 }}" placeholder="Max">
+          </div>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Cooldown (Sekunden zwischen XP-Vergaben)</label>
+          <input class="input" id="lv-cooldown" type="number" min="0"
+                 value="{{ lv_cfg.cooldown if lv_cfg else 60 }}">
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-primary" onclick="saveLvGeneral('{{ guild_id }}')">Speichern</button>
+        </div>
+      </div>
+
+      <!-- Level-Up Notification -->
+      <div class="card mb-4">
+        <div class="section-header" style="margin-bottom:16px">
+          <h3 style="font-size:16px;font-weight:700">Level-Up Benachrichtigung</h3>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Modus</label>
+          <select class="select" id="lv-mode" onchange="toggleLvChannel()">
+            <option value="disabled" {% if lv_cfg and lv_cfg.levelup_mode=='disabled' %}selected{% endif %}>Deaktiviert</option>
+            <option value="current"  {% if not lv_cfg or lv_cfg.levelup_mode=='current' %}selected{% endif %}>Aktueller Channel</option>
+            <option value="custom"   {% if lv_cfg and lv_cfg.levelup_mode=='custom' %}selected{% endif %}>Eigener Channel</option>
+            <option value="dm"       {% if lv_cfg and lv_cfg.levelup_mode=='dm' %}selected{% endif %}>Privatnachricht (DM)</option>
+          </select>
+        </div>
+        <div class="card-row" id="lv-channel-row" style="{% if not lv_cfg or lv_cfg.levelup_mode != 'custom' %}display:none{% endif %}">
+          <label class="field-label">Channel</label>
+          <select class="select" id="lv-channel">
+            <option value="">— Channel wählen —</option>
+            {% for ch in channels %}
+            <option value="{{ ch.id }}" {% if lv_cfg and lv_cfg.levelup_channel_id == ch.id %}selected{% endif %}>
+              # {{ ch.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Nachricht</label>
+          <textarea class="textarea" id="lv-msg" rows="2">{{ lv_cfg.levelup_message if lv_cfg else '🎉 {user} hat **Level {level}** erreicht!' }}</textarea>
+          <p class="hint">Platzhalter: <code>{user}</code> <code>{username}</code> <code>{level}</code> <code>{server}</code></p>
+        </div>
+        <div class="card-row">
+          <label class="toggle-label">
+            <span>Level-Rollen stapeln (Stack-Modus)</span>
+            <label class="toggle">
+              <input type="checkbox" id="lv-stack" {% if not lv_cfg or lv_cfg.role_stack %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+          <p class="hint">An = Nutzer behält alle verdienten Level-Rollen. Aus = nur die aktuelle Level-Rolle.</p>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-primary" onclick="saveLvLevelup('{{ guild_id }}')">Speichern</button>
+        </div>
+      </div>
+
+      <!-- Level Roles -->
+      <div class="card mb-4">
+        <div class="section-header" style="margin-bottom:16px">
+          <h3 style="font-size:16px;font-weight:700">Level-Rollen</h3>
+          <p class="text-muted" style="font-size:13px">Rollen die automatisch bei einem bestimmten Level vergeben werden.</p>
+        </div>
+        <div id="lv-roles-list">
+          {% for lr in lv_roles %}
+          <div class="lv-role-row" id="lvr-{{ lr.id }}">
+            <span class="badge badge-level">Level {{ lr.level }}</span>
+            <span class="role-chip">{{ role_map.get(lr.role_id, lr.role_id) }}</span>
+            <button class="btn btn-sm btn-danger" onclick="deleteLvRole('{{ guild_id }}', {{ lr.id }})">×</button>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="add-row mt-2">
+          <input class="input input-sm" id="lv-role-level" type="number" min="1" placeholder="Level" style="width:80px">
+          <select class="select select-sm" id="lv-role-select">
+            <option value="">Rolle wählen…</option>
+            {% for role in roles %}
+            <option value="{{ role.id }}">{{ role.name }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-primary" onclick="addLvRole('{{ guild_id }}')">Hinzufügen</button>
+        </div>
+      </div>
+
+      <!-- XP Multipliers -->
+      <div class="card mb-4">
+        <div class="section-header" style="margin-bottom:16px">
+          <h3 style="font-size:16px;font-weight:700">XP-Multiplikatoren</h3>
+          <p class="text-muted" style="font-size:13px">Bestimmte Rollen oder Channels verdienen mehr XP.</p>
+        </div>
+        <label class="field-label mb-1">Nach Rolle</label>
+        <div id="xp-mr-list">
+          {% for r in xp_mr %}
+          <div class="lv-role-row" id="xpmr-{{ r.id }}">
+            <span class="role-chip">{{ role_map.get(r.role_id, r.role_id) }}</span>
+            <span class="multiplier-badge">×{{ r.multiplier }}</span>
+            <button class="btn btn-sm btn-danger" onclick="deleteXpMr('{{ guild_id }}', {{ r.id }})">×</button>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="add-row mt-2 mb-4">
+          <select class="select select-sm" id="xpmr-role">
+            <option value="">Rolle wählen…</option>
+            {% for role in roles %}
+            <option value="{{ role.id }}">{{ role.name }}</option>
+            {% endfor %}
+          </select>
+          <input class="input input-sm" id="xpmr-mult" type="number" step="0.5" min="1.5" value="2" style="width:70px">
+          <button class="btn btn-sm btn-primary" onclick="addXpMr('{{ guild_id }}')">Hinzufügen</button>
+        </div>
+        <label class="field-label mb-1">Nach Channel</label>
+        <div id="xp-mc-list">
+          {% for r in xp_mc %}
+          <div class="lv-role-row" id="xpmc-{{ r.id }}">
+            <span class="badge badge-channel"># {{ ch_map.get(r.channel_id, r.channel_id) }}</span>
+            <span class="multiplier-badge">×{{ r.multiplier }}</span>
+            <button class="btn btn-sm btn-danger" onclick="deleteXpMc('{{ guild_id }}', {{ r.id }})">×</button>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="add-row mt-2">
+          <select class="select select-sm" id="xpmc-ch">
+            <option value="">Channel wählen…</option>
+            {% for ch in channels %}
+            <option value="{{ ch.id }}"># {{ ch.name }}</option>
+            {% endfor %}
+          </select>
+          <input class="input input-sm" id="xpmc-mult" type="number" step="0.5" min="1.5" value="2" style="width:70px">
+          <button class="btn btn-sm btn-primary" onclick="addXpMc('{{ guild_id }}')">Hinzufügen</button>
+        </div>
+      </div>
+
+      <!-- Restrictions -->
+      <div class="card">
+        <div class="section-header" style="margin-bottom:16px">
+          <h3 style="font-size:16px;font-weight:700">Einschränkungen</h3>
+          <p class="text-muted" style="font-size:13px">Channels und Rollen die kein XP verdienen.</p>
+        </div>
+        <label class="field-label mb-1">No-XP Channels</label>
+        <div id="no-xp-ch-list" class="role-chips mb-2">
+          {% for r in no_xp_ch %}
+          <span class="role-chip" id="noxpch-{{ r.id }}" style="background:var(--bg4);color:var(--text1)">
+            # {{ ch_map.get(r.channel_id, r.channel_id) }}
+            <button class="chip-remove" onclick="deleteNoXpCh('{{ guild_id }}', {{ r.id }})">×</button>
+          </span>
+          {% endfor %}
+        </div>
+        <div class="add-row mb-4">
+          <select class="select select-sm" id="noxpch-add" onchange="addNoXpCh('{{ guild_id }}', this)">
+            <option value="">+ Channel hinzufügen</option>
+            {% for ch in channels %}
+            <option value="{{ ch.id }}"># {{ ch.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <label class="field-label mb-1">No-XP Rollen</label>
+        <div id="no-xp-ro-list" class="role-chips">
+          {% for r in no_xp_ro %}
+          <span class="role-chip" id="noxpro-{{ r.id }}">
+            {{ role_map.get(r.role_id, r.role_id) }}
+            <button class="chip-remove" onclick="deleteNoXpRo('{{ guild_id }}', {{ r.id }})">×</button>
+          </span>
+          {% endfor %}
+        </div>
+        <div class="add-row mt-2">
+          <select class="select select-sm" id="noxpro-add" onchange="addNoXpRo('{{ guild_id }}', this)">
+            <option value="">+ Rolle hinzufügen</option>
+            {% for role in roles %}
+            <option value="{{ role.id }}">{{ role.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
     </section>
 

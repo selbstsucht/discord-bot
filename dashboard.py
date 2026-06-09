@@ -5,7 +5,9 @@ from flask import Flask, session, redirect, request, url_for, render_template, j
 from dotenv import load_dotenv
 from database import (init_db, get_session,
                       WelcomeConfig, GoodbyeConfig, AutoRoleConfig,
-                      SelfRoleMessage, SelfRoleButton)
+                      SelfRoleMessage, SelfRoleButton,
+                      LevelConfig, UserLevel, LevelRole,
+                      XpMultiplierRole, XpMultiplierChannel, NoXpChannel, NoXpRole)
 
 load_dotenv()
 init_db()
@@ -177,12 +179,20 @@ def dashboard(guild_id):
                 ]
             })
 
-        channels  = _text_channels(guild_id)
-        roles     = _roles(guild_id)
+        channels   = _text_channels(guild_id)
+        roles      = _roles(guild_id)
         guild_info = _guild(guild_id)
 
         ch_map   = {c['id']: c['name'] for c in channels}
         role_map = {r['id']: r['name'] for r in roles}
+
+        # Leveling data
+        lv_cfg    = db.query(LevelConfig).filter_by(guild_id=guild_id).first()
+        lv_roles  = db.query(LevelRole).filter_by(guild_id=guild_id).order_by(LevelRole.level).all()
+        xp_mr     = db.query(XpMultiplierRole).filter_by(guild_id=guild_id).all()
+        xp_mc     = db.query(XpMultiplierChannel).filter_by(guild_id=guild_id).all()
+        no_xp_ch  = db.query(NoXpChannel).filter_by(guild_id=guild_id).all()
+        no_xp_ro  = db.query(NoXpRole).filter_by(guild_id=guild_id).all()
 
         return render_template('dashboard.html',
             user=session['user'],
@@ -196,6 +206,12 @@ def dashboard(guild_id):
             goodbye=goodbye,
             autorole=autorole,
             selfroles=selfroles,
+            lv_cfg=lv_cfg,
+            lv_roles=[{'id': r.id, 'level': r.level, 'role_id': r.role_id} for r in lv_roles],
+            xp_mr=[{'id': r.id, 'role_id': r.role_id, 'multiplier': r.multiplier} for r in xp_mr],
+            xp_mc=[{'id': r.id, 'channel_id': r.channel_id, 'multiplier': r.multiplier} for r in xp_mc],
+            no_xp_ch=[{'id': r.id, 'channel_id': r.channel_id} for r in no_xp_ch],
+            no_xp_ro=[{'id': r.id, 'role_id': r.role_id} for r in no_xp_ro],
         )
     finally:
         db.close()
@@ -423,6 +439,183 @@ def api_sr_btn_del(gid, mid, bid):
         if not btn:
             return jsonify({'error': 'Not found'}), 404
         db.delete(btn)
+        db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+# ── API: Leveling ─────────────────────────────────────────────────────────────
+
+@app.route('/api/server/<gid>/leveling/general', methods=['POST'])
+def api_lv_general(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+        if not cfg:
+            cfg = LevelConfig(guild_id=gid)
+            db.add(cfg)
+        cfg.enabled  = bool(data.get('enabled'))
+        cfg.xp_min   = int(data.get('xp_min', 15))
+        cfg.xp_max   = int(data.get('xp_max', 25))
+        cfg.cooldown = int(data.get('cooldown', 60))
+        db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/levelup', methods=['POST'])
+def api_lv_levelup(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+        if not cfg:
+            cfg = LevelConfig(guild_id=gid)
+            db.add(cfg)
+        cfg.levelup_mode       = data.get('levelup_mode', 'current')
+        cfg.levelup_channel_id = data.get('levelup_channel_id') or None
+        cfg.levelup_message    = data.get('levelup_message', cfg.levelup_message)
+        cfg.role_stack         = bool(data.get('role_stack', True))
+        db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/level-roles', methods=['POST'])
+def api_lv_role_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        lr = LevelRole(guild_id=gid, level=int(data['level']), role_id=data['role_id'])
+        db.add(lr)
+        db.commit()
+        return jsonify({'ok': True, 'id': lr.id})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/level-roles/<int:rid>', methods=['DELETE'])
+def api_lv_role_del(gid, rid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        lr = db.query(LevelRole).filter_by(id=rid, guild_id=gid).first()
+        if lr: db.delete(lr)
+        db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/xp-mult-roles', methods=['POST'])
+def api_lv_xpmr_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        r = XpMultiplierRole(guild_id=gid, role_id=data['role_id'], multiplier=float(data.get('multiplier', 2.0)))
+        db.add(r)
+        db.commit()
+        return jsonify({'ok': True, 'id': r.id})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/xp-mult-roles/<int:rid>', methods=['DELETE'])
+def api_lv_xpmr_del(gid, rid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        r = db.query(XpMultiplierRole).filter_by(id=rid, guild_id=gid).first()
+        if r: db.delete(r)
+        db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/xp-mult-channels', methods=['POST'])
+def api_lv_xpmc_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        r = XpMultiplierChannel(guild_id=gid, channel_id=data['channel_id'], multiplier=float(data.get('multiplier', 2.0)))
+        db.add(r)
+        db.commit()
+        return jsonify({'ok': True, 'id': r.id})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/xp-mult-channels/<int:rid>', methods=['DELETE'])
+def api_lv_xpmc_del(gid, rid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        r = db.query(XpMultiplierChannel).filter_by(id=rid, guild_id=gid).first()
+        if r: db.delete(r)
+        db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/no-xp-channels', methods=['POST'])
+def api_lv_noxpch_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        r = NoXpChannel(guild_id=gid, channel_id=data['channel_id'])
+        db.add(r)
+        db.commit()
+        return jsonify({'ok': True, 'id': r.id})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/no-xp-channels/<int:rid>', methods=['DELETE'])
+def api_lv_noxpch_del(gid, rid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        r = db.query(NoXpChannel).filter_by(id=rid, guild_id=gid).first()
+        if r: db.delete(r)
+        db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/no-xp-roles', methods=['POST'])
+def api_lv_noxpr_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        r = NoXpRole(guild_id=gid, role_id=data['role_id'])
+        db.add(r)
+        db.commit()
+        return jsonify({'ok': True, 'id': r.id})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/no-xp-roles/<int:rid>', methods=['DELETE'])
+def api_lv_noxpr_del(gid, rid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        r = db.query(NoXpRole).filter_by(id=rid, guild_id=gid).first()
+        if r: db.delete(r)
         db.commit()
         return jsonify({'ok': True})
     finally:

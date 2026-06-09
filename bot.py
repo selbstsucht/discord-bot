@@ -30,6 +30,7 @@ async def main():
         await bot.load_extension('cogs.welcome')
         await bot.load_extension('cogs.autorole')
         await bot.load_extension('cogs.selfroles')
+        await bot.load_extension('cogs.leveling')
         await bot.start(os.getenv('BOT_TOKEN'))
 
 
