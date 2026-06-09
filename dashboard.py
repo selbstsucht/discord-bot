@@ -1,5 +1,6 @@
 import os
 import requests
+from urllib.parse import quote
 from flask import Flask, session, redirect, request, url_for, render_template, jsonify
 from dotenv import load_dotenv
 from database import (init_db, get_session,
@@ -83,7 +84,7 @@ def oauth():
     return redirect(
         f'https://discord.com/oauth2/authorize'
         f'?client_id={CLIENT_ID}'
-        f'&redirect_uri={REDIRECT_URI}'
+        f'&redirect_uri={quote(REDIRECT_URI, safe="")}'
         f'&response_type=code'
         f'&scope=identify+guilds'
     )
