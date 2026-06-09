@@ -8,7 +8,7 @@ from database import (get_session, LevelConfig, UserLevel, LevelRole,
 
 
 def xp_for_next_level(level: int) -> int:
-    return 5 * level * level + 50 * level + 100
+    return (6 * level * level + 60 * level + 120) // 10
 
 
 def xp_progress(total_xp: int):
@@ -22,13 +22,13 @@ def xp_progress(total_xp: int):
 
 
 def level_color(level: int) -> discord.Color:
-    if level < 5:   return discord.Color.from_str('#95a5a6')
-    if level < 10:  return discord.Color.from_str('#2ecc71')
-    if level < 20:  return discord.Color.from_str('#3498db')
-    if level < 30:  return discord.Color.from_str('#9b59b6')
-    if level < 40:  return discord.Color.from_str('#f1c40f')
-    if level < 50:  return discord.Color.from_str('#e67e22')
-    return discord.Color.from_str('#e74c3c')
+    if level < 15:  return discord.Color.from_str('#95a5a6')  # Grau   – neue Member
+    if level < 25:  return discord.Color.from_str('#2ecc71')  # Grün   – ~2–8 Tage
+    if level < 35:  return discord.Color.from_str('#3498db')  # Blau   – ~8–20 Tage
+    if level < 50:  return discord.Color.from_str('#9b59b6')  # Lila   – ~20–54 Tage
+    if level < 62:  return discord.Color.from_str('#f1c40f')  # Gold   – ~54–95 Tage
+    if level < 70:  return discord.Color.from_str('#e67e22')  # Orange – ~95–130 Tage
+    return discord.Color.from_str('#e74c3c')                  # Rot    – 130+ Tage
 
 
 def progress_bar(current: int, total: int, length: int = 18) -> str:
