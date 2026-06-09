@@ -404,6 +404,28 @@ async function deleteNoXpRo(gid, id) {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
+async function addCmdCh(gid, sel) {
+  const channel_id = sel.value; if (!channel_id) return; sel.value = '';
+  try {
+    await api('POST', `/api/server/${gid}/leveling/cmd-channels`, { channel_id });
+    const name = document.querySelector(`#cmdch-add option[value="${channel_id}"]`)?.textContent || `#${channel_id}`;
+    const chip = document.createElement('span');
+    chip.className = 'role-chip'; chip.id = `cmdch-${channel_id}`;
+    chip.style.cssText = 'background:var(--bg4);color:var(--text1)';
+    chip.innerHTML = `${name}<button class="chip-remove" onclick="deleteCmdCh('${gid}','${channel_id}')">×</button>`;
+    document.getElementById('cmd-ch-list').appendChild(chip);
+    showToast('Command-Channel hinzugefügt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteCmdCh(gid, channel_id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/leveling/cmd-channels/${channel_id}`);
+    document.getElementById(`cmdch-${channel_id}`)?.remove();
+    showToast('Command-Channel entfernt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
 /* ── Util ────────────────────────────────────────────────────── */
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

@@ -212,6 +212,7 @@ def dashboard(guild_id):
             xp_mc=[{'id': r.id, 'channel_id': r.channel_id, 'multiplier': r.multiplier} for r in xp_mc],
             no_xp_ch=[{'id': r.id, 'channel_id': r.channel_id} for r in no_xp_ch],
             no_xp_ro=[{'id': r.id, 'role_id': r.role_id} for r in no_xp_ro],
+            cmd_channels=lv_cfg.cmd_channels if lv_cfg else [],
         )
     finally:
         db.close()
@@ -617,6 +618,44 @@ def api_lv_noxpr_del(gid, rid):
         r = db.query(NoXpRole).filter_by(id=rid, guild_id=gid).first()
         if r: db.delete(r)
         db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/cmd-channels', methods=['POST'])
+def api_lv_cmdch_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+        if not cfg:
+            cfg = LevelConfig(guild_id=gid)
+            db.add(cfg)
+        chs = cfg.cmd_channels
+        ch_id = data.get('channel_id')
+        if ch_id and ch_id not in chs:
+            chs.append(ch_id)
+            cfg.cmd_channels = chs
+            db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/leveling/cmd-channels/<channel_id>', methods=['DELETE'])
+def api_lv_cmdch_del(gid, channel_id):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+        if cfg:
+            chs = cfg.cmd_channels
+            if channel_id in chs:
+                chs.remove(channel_id)
+                cfg.cmd_channels = chs
+                db.commit()
         return jsonify({'ok': True})
     finally:
         db.close()

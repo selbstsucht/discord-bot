@@ -168,6 +168,13 @@ class LevelingCog(commands.Cog):
                 await interaction.response.send_message('❌ Das Leveling-System ist nicht aktiviert.', ephemeral=True)
                 return
 
+            allowed = cfg.cmd_channels
+            if allowed and str(interaction.channel_id) not in allowed:
+                mentions = ' '.join(f'<#{c}>' for c in allowed)
+                await interaction.response.send_message(
+                    f'❌ Dieser Befehl ist nur in {mentions} erlaubt.', ephemeral=True)
+                return
+
             ul = db.query(UserLevel).filter_by(guild_id=gid, user_id=str(target.id)).first()
             total_xp = ul.xp if ul else 0
             level, xp_in_level, xp_needed = xp_progress(total_xp)
@@ -201,6 +208,13 @@ class LevelingCog(commands.Cog):
             cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
             if not cfg or not cfg.enabled:
                 await interaction.response.send_message('❌ Das Leveling-System ist nicht aktiviert.', ephemeral=True)
+                return
+
+            allowed = cfg.cmd_channels
+            if allowed and str(interaction.channel_id) not in allowed:
+                mentions = ' '.join(f'<#{c}>' for c in allowed)
+                await interaction.response.send_message(
+                    f'❌ Dieser Befehl ist nur in {mentions} erlaubt.', ephemeral=True)
                 return
 
             top = db.query(UserLevel).filter_by(guild_id=gid).order_by(UserLevel.xp.desc()).limit(10).all()

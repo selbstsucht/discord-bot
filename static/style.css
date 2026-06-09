@@ -592,3 +592,5 @@ code {
   cursor: pointer;
 }
 .btn-sm-outline:hover { border-color: var(--accent); color: var(--text1); }
+
+.divider { border: none; border-top: 1px solid var(--bg4); }

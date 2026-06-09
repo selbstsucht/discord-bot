@@ -465,6 +465,27 @@
             {% endfor %}
           </select>
         </div>
+
+        <div class="divider mt-4 mb-4"></div>
+
+        <label class="field-label mb-1">Erlaubte Channels für /rank & /leaderboard</label>
+        <p class="hint mb-2">Leer = überall erlaubt. Channels hinzufügen um Befehle auf bestimmte Channels zu beschränken.</p>
+        <div id="cmd-ch-list" class="role-chips mb-2">
+          {% for ch_id in cmd_channels %}
+          <span class="role-chip" id="cmdch-{{ ch_id }}" style="background:var(--bg4);color:var(--text1)">
+            # {{ ch_map.get(ch_id, ch_id) }}
+            <button class="chip-remove" onclick="deleteCmdCh('{{ guild_id }}', '{{ ch_id }}')">×</button>
+          </span>
+          {% endfor %}
+        </div>
+        <div class="add-row">
+          <select class="select select-sm" id="cmdch-add" onchange="addCmdCh('{{ guild_id }}', this)">
+            <option value="">+ Channel hinzufügen</option>
+            {% for ch in channels %}
+            <option value="{{ ch.id }}"># {{ ch.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
     </section>
 

@@ -87,6 +87,15 @@ class LevelConfig(Base):
     levelup_channel_id = Column(String, nullable=True)
     levelup_message    = Column(Text, default='🎉 {user} hat **Level {level}** erreicht!')
     role_stack         = Column(Boolean, default=True)
+    cmd_channels_json  = Column(Text, default='[]')  # allowed channels for /rank, /leaderboard; empty = everywhere
+
+    @property
+    def cmd_channels(self):
+        return json.loads(self.cmd_channels_json or '[]')
+
+    @cmd_channels.setter
+    def cmd_channels(self, value):
+        self.cmd_channels_json = json.dumps(value)
 
 
 class UserLevel(Base):
@@ -138,8 +147,22 @@ class NoXpRole(Base):
     role_id  = Column(String, nullable=False)
 
 
+def _migrate():
+    from sqlalchemy import text, inspect as sa_inspect
+    insp = sa_inspect(engine)
+    cols = {c['name'] for c in insp.get_columns('level_configs')}
+    with engine.connect() as conn:
+        if 'cmd_channels_json' not in cols:
+            conn.execute(text("ALTER TABLE level_configs ADD COLUMN cmd_channels_json TEXT DEFAULT '[]'"))
+            conn.commit()
+
+
 def init_db():
     Base.metadata.create_all(engine)
+    try:
+        _migrate()
+    except Exception:
+        pass
 
 
 def get_session():
