@@ -165,13 +165,15 @@ def dashboard(guild_id):
         for sm in sr_msgs:
             color_hex = f'#{sm.embed_color:06x}' if sm.embed_color else '#5865f2'
             selfroles.append({
-                'id':              sm.id,
-                'channel_id':      sm.channel_id,
-                'message_id':      sm.message_id,
-                'embed_title':     sm.embed_title,
+                'id':               sm.id,
+                'channel_id':       sm.channel_id,
+                'message_id':       sm.message_id,
+                'embed_title':      sm.embed_title,
                 'embed_description': sm.embed_description,
-                'embed_color':     color_hex,
-                'embed_image_url': sm.embed_image_url or '',
+                'embed_color':      color_hex,
+                'embed_image_url':  sm.embed_image_url or '',
+                'interaction_type': sm.interaction_type or 'buttons',
+                'single_select':    bool(sm.single_select),
                 'buttons': [
                     {'id': b.id, 'role_id': b.role_id,
                      'label': b.label, 'emoji': b.emoji or '', 'style': b.style}
@@ -298,6 +300,8 @@ def api_sr_create(gid):
             embed_description = data.get('embed_description', 'Wähle deine Rollen!'),
             embed_color       = color_int,
             embed_image_url   = data.get('embed_image_url') or None,
+            interaction_type  = data.get('interaction_type', 'buttons'),
+            single_select     = bool(data.get('single_select', False)),
         )
         db.add(sm)
         db.commit()
@@ -321,6 +325,8 @@ def api_sr_update(gid, mid):
         if 'embed_color'       in data: sm.embed_color       = int(data['embed_color'].lstrip('#'), 16)
         if 'embed_image_url'   in data: sm.embed_image_url   = data['embed_image_url'] or None
         if 'channel_id'        in data: sm.channel_id        = data['channel_id'] or None
+        if 'interaction_type'  in data: sm.interaction_type  = data['interaction_type']
+        if 'single_select'     in data: sm.single_select     = bool(data['single_select'])
         db.commit()
         return jsonify({'ok': True})
     finally:
@@ -366,25 +372,56 @@ def api_sr_post(gid, mid):
         if sm.embed_image_url:
             embed['image'] = {'url': sm.embed_image_url}
 
-        components = []
-        row = {'type': 1, 'components': []}
-        for i, btn in enumerate(sm.buttons[:25]):
-            if i > 0 and i % 5 == 0:
-                components.append(row)
-                row = {'type': 1, 'components': []}
-            b = {
-                'type':      2,
-                'label':     btn.label,
-                'custom_id': f'selfrole_{sm.id}_{btn.role_id}',
-                'style':     STYLE_MAP.get(btn.style, 1),
-            }
-            if btn.emoji:
-                b['emoji'] = {'name': btn.emoji}
-            row['components'].append(b)
-        if row['components']:
-            components.append(row)
+        itype = sm.interaction_type or 'buttons'
 
-        payload = {'embeds': [embed], 'components': components}
+        if itype == 'reactions':
+            payload = {'embeds': [embed], 'components': []}
+        elif itype == 'select_menu':
+            options = []
+            for btn in sm.buttons[:25]:
+                opt = {'label': btn.label[:100], 'value': btn.role_id}
+                if btn.emoji:
+                    opt['emoji'] = {'name': btn.emoji}
+                options.append(opt)
+            if not options:
+                return jsonify({'error': 'Mindestens eine Option/Rolle erforderlich'}), 400
+            max_vals = 1 if sm.single_select else min(len(options), 25)
+            payload = {'embeds': [embed], 'components': [{
+                'type': 1,
+                'components': [{
+                    'type':        3,
+                    'custom_id':   f'selfrole_menu_{sm.id}',
+                    'options':     options,
+                    'min_values':  0,
+                    'max_values':  max_vals,
+                    'placeholder': 'Rolle wählen…' if sm.single_select else 'Rollen wählen…',
+                }]
+            }]}
+        else:  # buttons
+            components = []
+            row = {'type': 1, 'components': []}
+            for i, btn in enumerate(sm.buttons[:25]):
+                if i > 0 and i % 5 == 0:
+                    components.append(row)
+                    row = {'type': 1, 'components': []}
+                b = {
+                    'type':      2,
+                    'label':     btn.label,
+                    'custom_id': f'selfrole_{sm.id}_{btn.role_id}',
+                    'style':     STYLE_MAP.get(btn.style, 1),
+                }
+                if btn.emoji:
+                    b['emoji'] = {'name': btn.emoji}
+                row['components'].append(b)
+            if row['components']:
+                components.append(row)
+            payload = {'embeds': [embed], 'components': components}
+
+        # For reactions: clear existing reactions before (re-)posting
+        if itype == 'reactions' and sm.message_id:
+            requests.delete(
+                f'{API}/channels/{sm.channel_id}/messages/{sm.message_id}/reactions',
+                headers={'Authorization': f'Bot {BOT_TOKEN}'})
 
         if sm.message_id:
             r = requests.patch(
@@ -395,11 +432,22 @@ def api_sr_post(gid, mid):
                 f'{API}/channels/{sm.channel_id}/messages',
                 json=payload, headers=_bot())
 
-        if r.ok:
-            sm.message_id = r.json()['id']
-            db.commit()
-            return jsonify({'ok': True, 'message_id': sm.message_id})
-        return jsonify({'error': r.text}), 400
+        if not r.ok:
+            return jsonify({'error': r.text}), 400
+
+        sm.message_id = r.json()['id']
+        db.commit()
+
+        # Add emoji reactions after posting
+        if itype == 'reactions':
+            for btn in sm.buttons:
+                if btn.emoji:
+                    requests.put(
+                        f'{API}/channels/{sm.channel_id}/messages/{sm.message_id}'
+                        f'/reactions/{quote(btn.emoji.strip(), safe="")}/@me',
+                        headers={'Authorization': f'Bot {BOT_TOKEN}'})
+
+        return jsonify({'ok': True, 'message_id': sm.message_id})
     finally:
         db.close()
 

@@ -204,6 +204,16 @@
                 Kein Channel
               {% endif %}
             </span>
+            {% if sr.interaction_type == 'reactions' %}
+            <span class="badge badge-draft">⚡ Reactions</span>
+            {% elif sr.interaction_type == 'select_menu' %}
+            <span class="badge badge-draft">📋 Dropdown</span>
+            {% else %}
+            <span class="badge badge-draft">🔘 Buttons</span>
+            {% endif %}
+            {% if sr.single_select %}
+            <span class="badge" style="background:rgba(88,101,242,.15);color:#8b9cf7;border:1px solid #5865f2">Einzelwahl</span>
+            {% endif %}
             {% if sr.message_id %}
             <span class="badge badge-posted">Gepostet ✓</span>
             {% else %}
@@ -249,7 +259,7 @@
               📤 In Discord posten
             </button>
             <button class="btn btn-sm btn-secondary"
-                    onclick="openEditModal('{{ guild_id }}', {{ sr.id }}, {{ sr | tojson }}, {{ channels | tojson }})">
+                    onclick="openEditModal('{{ guild_id }}', {{ sr.id }}, {{ sr|tojson }}, {{ channels|tojson }})">
               ✏️ Bearbeiten
             </button>
             <button class="btn btn-sm btn-danger"

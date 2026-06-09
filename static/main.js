@@ -102,30 +102,46 @@ function closeModal() {
 }
 
 /* ── Self-Roles: Create ──────────────────────────────────────── */
-function openCreateModal(gid) {
-  _currentEditId = null;
-  const channelOptions = (window.ALL_CHANNELS || [])
-    .map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
+function _srTypeHints() {
+  return {
+    buttons:    'Nutzer klicken auf einen Button um eine Rolle zu erhalten/abzugeben.',
+    reactions:  'Nutzer reagieren mit einem Emoji um eine Rolle zu erhalten. Emoji muss bei jeder Rolle eingetragen sein.',
+    select_menu:'Nutzer wählen Rollen aus einem scrollbaren Dropdown-Menü.',
+  };
+}
 
-  openModal(`
-    <div class="modal-title">Neue Self-Role Nachricht</div>
+function updateTypeHint() {
+  const val  = document.getElementById('m-type')?.value;
+  const hint = document.getElementById('m-type-hint');
+  if (hint) hint.textContent = (_srTypeHints()[val] || '');
+}
+
+function _buildSrModal({ title, gid, submitLabel, defaults = {} }) {
+  const channelOptions = (window.ALL_CHANNELS || [])
+    .map(c => `<option value="${c.id}" ${c.id === (defaults.channel_id || '') ? 'selected' : ''}># ${c.name}</option>`).join('');
+  const itype  = defaults.interaction_type || 'buttons';
+  const single = defaults.single_select    || false;
+  const color  = defaults.embed_color      || '#5865f2';
+
+  return `
+    <div class="modal-title">${title}</div>
     <div class="modal-form">
       <label>Titel
-        <input class="input" id="m-title" value="Self Roles" maxlength="256">
+        <input class="input" id="m-title" value="${_esc(defaults.embed_title || 'Self Roles')}" maxlength="256">
       </label>
       <label>Beschreibung
-        <textarea class="textarea" id="m-desc" rows="3">Klicke auf einen Button um eine Rolle zu erhalten!</textarea>
+        <textarea class="textarea" id="m-desc" rows="3">${_esc(defaults.embed_description || 'Klicke auf einen Button um eine Rolle zu erhalten!')}</textarea>
       </label>
       <label>Farbe
         <div class="color-row">
-          <input type="color" id="m-color-picker" value="#5865f2"
+          <input type="color" id="m-color-picker" value="${color}"
                  oninput="document.getElementById('m-color').value=this.value">
-          <input class="input" id="m-color" value="#5865f2" placeholder="#5865f2" maxlength="7"
+          <input class="input" id="m-color" value="${color}" placeholder="#5865f2" maxlength="7"
                  oninput="syncColor(this.value)">
         </div>
       </label>
       <label>Bild-URL (optional)
-        <input class="input" id="m-img" placeholder="https://…">
+        <input class="input" id="m-img" value="${_esc(defaults.embed_image_url || '')}" placeholder="https://…">
       </label>
       <label>Channel
         <select class="select" id="m-channel">
@@ -133,12 +149,33 @@ function openCreateModal(gid) {
           ${channelOptions}
         </select>
       </label>
+      <label>Interaktionstyp
+        <select class="select" id="m-type" onchange="updateTypeHint()">
+          <option value="buttons"    ${itype === 'buttons'     ? 'selected' : ''}>🔘 Buttons</option>
+          <option value="reactions"  ${itype === 'reactions'   ? 'selected' : ''}>⚡ Reaction Roles</option>
+          <option value="select_menu"${itype === 'select_menu' ? 'selected' : ''}>📋 Dropdown-Menü</option>
+        </select>
+      </label>
+      <p class="hint" id="m-type-hint">${_esc(_srTypeHints()[itype] || '')}</p>
+      <label class="toggle-label" style="margin-top:4px">
+        <span>Nur eine Rolle wählbar (Einzelwahl)</span>
+        <label class="toggle">
+          <input type="checkbox" id="m-single" ${single ? 'checked' : ''}>
+          <span class="toggle-slider"></span>
+        </label>
+      </label>
+      <p class="hint">An = Nutzer kann immer nur eine Rolle aus dieser Nachricht haben.</p>
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
-        <button class="btn btn-primary" onclick="submitSrForm('${gid}')">Erstellen</button>
+        <button class="btn btn-primary" onclick="submitSrForm('${gid}')">${submitLabel}</button>
       </div>
     </div>
-  `);
+  `;
+}
+
+function openCreateModal(gid) {
+  _currentEditId = null;
+  openModal(_buildSrModal({ title: 'Neue Self-Role Nachricht', gid, submitLabel: 'Erstellen' }));
 }
 
 function syncColor(val) {
@@ -153,6 +190,8 @@ async function submitSrForm(gid) {
     embed_color:       document.getElementById('m-color').value,
     embed_image_url:   document.getElementById('m-img').value.trim(),
     channel_id:        document.getElementById('m-channel').value,
+    interaction_type:  document.getElementById('m-type').value,
+    single_select:     document.getElementById('m-single').checked,
   };
   try {
     if (_currentEditId) {
@@ -170,42 +209,11 @@ async function submitSrForm(gid) {
 /* ── Self-Roles: Edit ────────────────────────────────────────── */
 function openEditModal(gid, id, sr, channels) {
   _currentEditId = id;
-  const channelOptions = channels
-    .map(c => `<option value="${c.id}" ${c.id === sr.channel_id ? 'selected' : ''}># ${c.name}</option>`)
-    .join('');
-
-  openModal(`
-    <div class="modal-title">Nachricht bearbeiten</div>
-    <div class="modal-form">
-      <label>Titel
-        <input class="input" id="m-title" value="${_esc(sr.embed_title)}" maxlength="256">
-      </label>
-      <label>Beschreibung
-        <textarea class="textarea" id="m-desc" rows="3">${_esc(sr.embed_description)}</textarea>
-      </label>
-      <label>Farbe
-        <div class="color-row">
-          <input type="color" id="m-color-picker" value="${sr.embed_color}"
-                 oninput="document.getElementById('m-color').value=this.value">
-          <input class="input" id="m-color" value="${sr.embed_color}" placeholder="#5865f2" maxlength="7"
-                 oninput="syncColor(this.value)">
-        </div>
-      </label>
-      <label>Bild-URL (optional)
-        <input class="input" id="m-img" value="${_esc(sr.embed_image_url)}" placeholder="https://…">
-      </label>
-      <label>Channel
-        <select class="select" id="m-channel">
-          <option value="">— Channel wählen —</option>
-          ${channelOptions}
-        </select>
-      </label>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
-        <button class="btn btn-primary" onclick="submitSrForm('${gid}')">Speichern</button>
-      </div>
-    </div>
-  `);
+  // Inject channels into ALL_CHANNELS temporarily so _buildSrModal can use them
+  const _prev = window.ALL_CHANNELS;
+  window.ALL_CHANNELS = channels;
+  openModal(_buildSrModal({ title: 'Nachricht bearbeiten', gid, submitLabel: 'Speichern', defaults: sr }));
+  window.ALL_CHANNELS = _prev;
 }
 
 /* ── Self-Roles: Delete ──────────────────────────────────────── */

@@ -59,6 +59,8 @@ class SelfRoleMessage(Base):
     embed_description= Column(Text, default='Klicke auf einen Button um eine Rolle zu erhalten!')
     embed_color      = Column(Integer, default=0x5865F2)
     embed_image_url  = Column(String, nullable=True)
+    interaction_type = Column(String, default='buttons')   # buttons | reactions | select_menu
+    single_select    = Column(Boolean, default=False)
     buttons          = relationship('SelfRoleButton', back_populates='sr_message',
                                     cascade='all, delete-orphan')
 
@@ -155,14 +157,27 @@ class NoXpRole(Base):
 
 def _migrate():
     from sqlalchemy import text, inspect as sa_inspect
-    try:
-        insp = sa_inspect(engine)
-        cols = {c['name'] for c in insp.get_columns('level_configs')}
-    except Exception as e:
-        print(f'[Migration] level_configs nicht abrufbar: {e}')
-        return
 
-    new_cols = {
+    def _add_cols(table, cols_map):
+        try:
+            insp = sa_inspect(engine)
+            if table not in insp.get_table_names():
+                return
+            existing = {c['name'] for c in insp.get_columns(table)}
+        except Exception as e:
+            print(f'[Migration] {table} nicht abrufbar: {e}')
+            return
+        for col, typedef in cols_map.items():
+            if col not in existing:
+                try:
+                    with engine.connect() as conn:
+                        conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {col} {typedef}'))
+                        conn.commit()
+                    print(f'[Migration] {table}.{col} hinzugefügt')
+                except Exception as e:
+                    print(f'[Migration] Fehler {table}.{col}: {e}')
+
+    _add_cols('level_configs', {
         'cmd_channels_json':     "TEXT DEFAULT '[]'",
         'voice_enabled':         'BOOLEAN DEFAULT false',
         'voice_xp_min':          'INTEGER DEFAULT 10',
@@ -170,16 +185,11 @@ def _migrate():
         'voice_interval':        'INTEGER DEFAULT 5',
         'voice_ignore_muted':    'BOOLEAN DEFAULT true',
         'voice_ignore_deafened': 'BOOLEAN DEFAULT true',
-    }
-    for col, typedef in new_cols.items():
-        if col not in cols:
-            try:
-                with engine.connect() as conn:
-                    conn.execute(text(f'ALTER TABLE level_configs ADD COLUMN {col} {typedef}'))
-                    conn.commit()
-                print(f'[Migration] Spalte hinzugefügt: {col}')
-            except Exception as e:
-                print(f'[Migration] Fehler bei Spalte {col}: {e}')
+    })
+    _add_cols('selfrole_messages', {
+        'interaction_type': "TEXT DEFAULT 'buttons'",
+        'single_select':    'BOOLEAN DEFAULT false',
+    })
 
 
 def init_db():
