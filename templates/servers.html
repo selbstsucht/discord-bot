@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Server auswählen – Bot Dashboard{% endblock %}
+{% block content %}
+<nav class="top-nav">
+  <div class="nav-brand">🤖 Bot Dashboard</div>
+  <div class="nav-user">
+    {% if user.avatar %}
+    <img src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png?size=32"
+         class="nav-avatar" alt="avatar">
+    {% endif %}
+    <span class="nav-username">{{ user.username }}</span>
+    <a href="/logout" class="btn-sm btn-ghost">Abmelden</a>
+  </div>
+</nav>
+
+<main class="servers-page">
+  <div class="page-header">
+    <h2>Deine Server</h2>
+    <p class="text-muted">Wähle einen Server, den du konfigurieren möchtest.</p>
+  </div>
+
+  {% if guilds %}
+  <div class="servers-grid">
+    {% for guild in guilds %}
+    <div class="server-card">
+      {% if guild.icon_url %}
+      <img src="{{ guild.icon_url }}" class="server-icon" alt="{{ guild.name }}">
+      {% else %}
+      <div class="server-icon server-icon-placeholder">
+        {{ guild.name[0] | upper }}
+      </div>
+      {% endif %}
+      <h3 class="server-name">{{ guild.name }}</h3>
+      {% if guild.bot_present %}
+      <a href="/server/{{ guild.id }}" class="btn btn-primary btn-full">Konfigurieren</a>
+      {% else %}
+      <a href="{{ invite_base }}&guild_id={{ guild.id }}" target="_blank"
+         class="btn btn-secondary btn-full">Bot einladen</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🔍</div>
+    <p>Keine Server gefunden, auf denen du Admin-Rechte hast.</p>
+  </div>
+  {% endif %}
+</main>
+{% endblock %}

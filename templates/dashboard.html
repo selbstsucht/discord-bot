@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+{% block title %}{{ guild.name }} – Bot Dashboard{% endblock %}
+
+{% block content %}
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      {% if guild.icon %}
+      <img src="https://cdn.discordapp.com/icons/{{ guild_id }}/{{ guild.icon }}.png"
+           class="sidebar-guild-icon" alt="{{ guild.name }}">
+      {% else %}
+      <div class="sidebar-guild-icon sidebar-icon-placeholder">{{ guild.name[0]|upper }}</div>
+      {% endif %}
+      <span class="sidebar-guild-name">{{ guild.name }}</span>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="sidebar-btn active" onclick="switchTab('welcome', this)">
+        <span class="sidebar-icon">👋</span> Willkommen
+      </button>
+      <button class="sidebar-btn" onclick="switchTab('goodbye', this)">
+        <span class="sidebar-icon">😢</span> Verabschiedung
+      </button>
+      <button class="sidebar-btn" onclick="switchTab('autorole', this)">
+        <span class="sidebar-icon">🎭</span> Auto-Rollen
+      </button>
+      <button class="sidebar-btn" onclick="switchTab('selfroles', this)">
+        <span class="sidebar-icon">🏷️</span> Self-Roles
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      {% if user.avatar %}
+      <img src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.png?size=28"
+           class="sidebar-user-avatar" alt="avatar">
+      {% endif %}
+      <span class="sidebar-username">{{ user.username }}</span>
+      <a href="/servers" class="sidebar-back-btn" title="Zurück">←</a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- ── Welcome Tab ─────────────────────────────────── -->
+    <section id="tab-welcome" class="tab-section active">
+      <div class="section-header">
+        <h2>Willkommensnachricht</h2>
+        <p class="text-muted">Begrüße neue Mitglieder automatisch in einem Channel.</p>
+      </div>
+      <div class="card">
+        <div class="card-row">
+          <label class="toggle-label">
+            <span>Aktiviert</span>
+            <label class="toggle">
+              <input type="checkbox" id="welcome-enabled"
+                     {% if welcome and welcome.enabled %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Channel</label>
+          <select id="welcome-channel" class="select">
+            <option value="">— Channel wählen —</option>
+            {% for ch in channels %}
+            <option value="{{ ch.id }}"
+              {% if welcome and welcome.channel_id == ch.id %}selected{% endif %}>
+              # {{ ch.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Nachricht</label>
+          <textarea id="welcome-message" class="textarea" rows="3"
+            placeholder="Nachricht eingeben…">{{ welcome.message if welcome else '👋 Willkommen {user} auf **{server}**!' }}</textarea>
+          <p class="hint">Platzhalter: <code>{user}</code> Erwähnung · <code>{username}</code> Name · <code>{server}</code> Servername</p>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-primary" onclick="saveWelcome('{{ guild_id }}')">Speichern</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Goodbye Tab ─────────────────────────────────── -->
+    <section id="tab-goodbye" class="tab-section">
+      <div class="section-header">
+        <h2>Verabschiedungsnachricht</h2>
+        <p class="text-muted">Verabschiede Mitglieder, die den Server verlassen.</p>
+      </div>
+      <div class="card">
+        <div class="card-row">
+          <label class="toggle-label">
+            <span>Aktiviert</span>
+            <label class="toggle">
+              <input type="checkbox" id="goodbye-enabled"
+                     {% if goodbye and goodbye.enabled %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Channel</label>
+          <select id="goodbye-channel" class="select">
+            <option value="">— Channel wählen —</option>
+            {% for ch in channels %}
+            <option value="{{ ch.id }}"
+              {% if goodbye and goodbye.channel_id == ch.id %}selected{% endif %}>
+              # {{ ch.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Nachricht</label>
+          <textarea id="goodbye-message" class="textarea" rows="3"
+            placeholder="Nachricht eingeben…">{{ goodbye.message if goodbye else '😢 {user} hat den Server verlassen.' }}</textarea>
+          <p class="hint">Platzhalter: <code>{user}</code> Name#0000 · <code>{username}</code> Name · <code>{server}</code> Servername</p>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-primary" onclick="saveGoodbye('{{ guild_id }}')">Speichern</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Auto-Roles Tab ──────────────────────────────── -->
+    <section id="tab-autorole" class="tab-section">
+      <div class="section-header">
+        <h2>Auto-Rollen</h2>
+        <p class="text-muted">Weise neuen Mitgliedern beim Beitritt automatisch Rollen zu.</p>
+      </div>
+      <div class="card">
+        <div class="card-row">
+          <label class="toggle-label">
+            <span>Aktiviert</span>
+            <label class="toggle">
+              <input type="checkbox" id="autorole-enabled"
+                     {% if autorole and autorole.enabled %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Rollen beim Beitritt</label>
+          <div class="role-picker">
+            <div id="autorole-selected" class="role-chips">
+              {% if autorole %}
+                {% for rid in autorole.role_ids %}
+                  {% if rid in role_map %}
+                  <span class="role-chip" data-id="{{ rid }}">
+                    {{ role_map[rid] }}
+                    <button class="chip-remove" onclick="removeAutorole('{{ rid }}')">×</button>
+                  </span>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            </div>
+            <select id="autorole-add-select" class="select" onchange="addAutorole(this)">
+              <option value="">+ Rolle hinzufügen</option>
+              {% for role in roles %}
+              <option value="{{ role.id }}" data-name="{{ role.name }}">{{ role.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-primary" onclick="saveAutorole('{{ guild_id }}')">Speichern</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Self-Roles Tab ──────────────────────────────── -->
+    <section id="tab-selfroles" class="tab-section">
+      <div class="section-header">
+        <h2>Self-Roles</h2>
+        <p class="text-muted">Erstelle Nachrichten mit Buttons, über die Nutzer sich selbst Rollen geben können.</p>
+      </div>
+
+      <button class="btn btn-primary mb-4"
+              onclick="openCreateModal('{{ guild_id }}')">+ Neue Nachricht erstellen</button>
+
+      <div id="selfroles-list">
+        {% for sr in selfroles %}
+        <div class="sr-card" id="sr-card-{{ sr.id }}">
+          <div class="sr-embed-preview" style="border-left-color: {{ sr.embed_color }}">
+            {% if sr.embed_image_url %}
+            <img src="{{ sr.embed_image_url }}" class="sr-embed-img" alt="embed image">
+            {% endif %}
+            <div class="sr-embed-body">
+              <div class="sr-embed-title">{{ sr.embed_title }}</div>
+              <div class="sr-embed-desc">{{ sr.embed_description }}</div>
+            </div>
+          </div>
+
+          <div class="sr-meta">
+            <span class="badge badge-channel">
+              {% if sr.channel_id and sr.channel_id in ch_map %}
+                # {{ ch_map[sr.channel_id] }}
+              {% else %}
+                Kein Channel
+              {% endif %}
+            </span>
+            {% if sr.message_id %}
+            <span class="badge badge-posted">Gepostet ✓</span>
+            {% else %}
+            <span class="badge badge-draft">Entwurf</span>
+            {% endif %}
+          </div>
+
+          <div class="sr-buttons-area">
+            <div class="sr-btn-chips" id="sr-chips-{{ sr.id }}">
+              {% for btn in sr.buttons %}
+              <span class="btn-chip btn-chip-{{ btn.style }}">
+                {% if btn.emoji %}{{ btn.emoji }} {% endif %}{{ btn.label }}
+                <button class="chip-remove"
+                  onclick="deleteSrButton('{{ guild_id }}', {{ sr.id }}, {{ btn.id }})">×</button>
+              </span>
+              {% endfor %}
+            </div>
+            <button class="btn btn-sm btn-ghost"
+                    onclick="toggleAddBtnForm({{ sr.id }})">+ Button</button>
+            <div class="add-btn-form" id="add-btn-form-{{ sr.id }}" style="display:none">
+              <select id="ab-role-{{ sr.id }}" class="select select-sm">
+                <option value="">Rolle wählen…</option>
+                {% for role in roles %}
+                <option value="{{ role.id }}">{{ role.name }}</option>
+                {% endfor %}
+              </select>
+              <input id="ab-label-{{ sr.id }}" class="input input-sm" placeholder="Button-Text" maxlength="80">
+              <input id="ab-emoji-{{ sr.id }}" class="input input-sm" placeholder="Emoji (optional)" maxlength="10">
+              <select id="ab-style-{{ sr.id }}" class="select select-sm">
+                <option value="primary">Blau (Primary)</option>
+                <option value="secondary">Grau (Secondary)</option>
+                <option value="success">Grün (Success)</option>
+                <option value="danger">Rot (Danger)</option>
+              </select>
+              <button class="btn btn-sm btn-primary"
+                      onclick="addSrButton('{{ guild_id }}', {{ sr.id }})">Hinzufügen</button>
+            </div>
+          </div>
+
+          <div class="sr-actions">
+            <button class="btn btn-sm btn-success"
+                    onclick="postSrMessage('{{ guild_id }}', {{ sr.id }})">
+              📤 In Discord posten
+            </button>
+            <button class="btn btn-sm btn-secondary"
+                    onclick="openEditModal('{{ guild_id }}', {{ sr.id }}, {{ sr | tojson }}, {{ channels | tojson }})">
+              ✏️ Bearbeiten
+            </button>
+            <button class="btn btn-sm btn-danger"
+                    onclick="deleteSrMessage('{{ guild_id }}', {{ sr.id }})">
+              🗑️ Löschen
+            </button>
+          </div>
+        </div>
+        {% else %}
+        <div class="empty-state" id="sr-empty">
+          <div class="empty-icon">🏷️</div>
+          <p>Noch keine Self-Role Nachrichten. Erstelle deine erste!</p>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.GUILD_ID = "{{ guild_id }}";
+  window.ALL_ROLES = {{ roles | tojson }};
+  window.ALL_CHANNELS = {{ channels | tojson }};
+</script>
+{% endblock %}

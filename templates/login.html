@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Login – Bot Dashboard{% endblock %}
+{% block content %}
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-icon">🤖</div>
+    <h1 class="login-title">Bot Dashboard</h1>
+    <p class="login-sub">Melde dich mit Discord an, um deinen Server zu konfigurieren.</p>
+    <a href="/oauth" class="btn-discord">
+      <svg width="20" height="20" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M60.105 4.898A58.55 58.55 0 0 0 45.719.455a40.22 40.22 0 0 0-1.8 3.697 54.11 54.11 0 0 0-16.23 0A40.495 40.495 0 0 0 25.89.455 58.386 58.386 0 0 0 11.498 4.9C1.656 19.352-1.013 33.44.315 47.33A58.755 58.755 0 0 0 17.93 55c1.44-1.96 2.722-4.04 3.823-6.22a38.384 38.384 0 0 1-6.02-2.91c.505-.37 1-.75 1.475-1.14 11.584 5.34 24.152 5.34 35.596 0 .48.39.974.77 1.475 1.14a38.278 38.278 0 0 1-6.025 2.913c1.1 2.177 2.382 4.258 3.822 6.217A58.616 58.616 0 0 0 70.088 47.33C71.64 31.16 67.352 17.204 60.105 4.898ZM23.734 38.778c-3.5 0-6.38-3.218-6.38-7.164 0-3.946 2.816-7.17 6.38-7.17 3.563 0 6.443 3.224 6.38 7.17.004 3.946-2.816 7.164-6.38 7.164Zm23.535 0c-3.5 0-6.38-3.218-6.38-7.164 0-3.946 2.815-7.17 6.38-7.17 3.564 0 6.444 3.224 6.38 7.17 0 3.946-2.816 7.164-6.38 7.164Z" fill="#fff"/>
+      </svg>
+      Mit Discord anmelden
+    </a>
+  </div>
+</div>
+{% endblock %}
