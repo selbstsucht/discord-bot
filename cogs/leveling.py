@@ -103,7 +103,11 @@ class LevelingCog(commands.Cog):
         db = get_session()
         try:
             gid = str(message.guild.id)
-            cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+            try:
+                cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+            except Exception as e:
+                print(f'[Leveling] DB-Fehler beim Lesen der Config: {e}')
+                return
             if not cfg or not cfg.enabled:
                 return
 
@@ -165,7 +169,11 @@ class LevelingCog(commands.Cog):
         try:
             for guild in self.bot.guilds:
                 gid = str(guild.id)
-                cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+                try:
+                    cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+                except Exception as e:
+                    print(f'[VoiceXP] DB-Fehler Guild {gid}: {e}')
+                    continue
                 if not cfg or not cfg.enabled or not cfg.voice_enabled:
                     continue
 

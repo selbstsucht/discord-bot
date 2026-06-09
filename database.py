@@ -155,30 +155,36 @@ class NoXpRole(Base):
 
 def _migrate():
     from sqlalchemy import text, inspect as sa_inspect
-    insp = sa_inspect(engine)
-    cols = {c['name'] for c in insp.get_columns('level_configs')}
+    try:
+        insp = sa_inspect(engine)
+        cols = {c['name'] for c in insp.get_columns('level_configs')}
+    except Exception as e:
+        print(f'[Migration] level_configs nicht abrufbar: {e}')
+        return
+
     new_cols = {
-        'cmd_channels_json':   "TEXT DEFAULT '[]'",
-        'voice_enabled':       'BOOLEAN DEFAULT FALSE',
-        'voice_xp_min':        'INTEGER DEFAULT 10',
-        'voice_xp_max':        'INTEGER DEFAULT 20',
-        'voice_interval':      'INTEGER DEFAULT 5',
-        'voice_ignore_muted':  'BOOLEAN DEFAULT TRUE',
-        'voice_ignore_deafened': 'BOOLEAN DEFAULT TRUE',
+        'cmd_channels_json':     "TEXT DEFAULT '[]'",
+        'voice_enabled':         'BOOLEAN DEFAULT false',
+        'voice_xp_min':          'INTEGER DEFAULT 10',
+        'voice_xp_max':          'INTEGER DEFAULT 20',
+        'voice_interval':        'INTEGER DEFAULT 5',
+        'voice_ignore_muted':    'BOOLEAN DEFAULT true',
+        'voice_ignore_deafened': 'BOOLEAN DEFAULT true',
     }
-    with engine.connect() as conn:
-        for col, typedef in new_cols.items():
-            if col not in cols:
-                conn.execute(text(f'ALTER TABLE level_configs ADD COLUMN {col} {typedef}'))
-        conn.commit()
+    for col, typedef in new_cols.items():
+        if col not in cols:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text(f'ALTER TABLE level_configs ADD COLUMN {col} {typedef}'))
+                    conn.commit()
+                print(f'[Migration] Spalte hinzugefügt: {col}')
+            except Exception as e:
+                print(f'[Migration] Fehler bei Spalte {col}: {e}')
 
 
 def init_db():
     Base.metadata.create_all(engine)
-    try:
-        _migrate()
-    except Exception:
-        pass
+    _migrate()
 
 
 def get_session():
