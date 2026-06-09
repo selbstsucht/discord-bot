@@ -488,6 +488,28 @@ def api_lv_levelup(gid):
         db.close()
 
 
+@app.route('/api/server/<gid>/leveling/voice', methods=['POST'])
+def api_lv_voice(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json
+    db = get_session()
+    try:
+        cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+        if not cfg:
+            cfg = LevelConfig(guild_id=gid)
+            db.add(cfg)
+        cfg.voice_enabled         = bool(data.get('voice_enabled'))
+        cfg.voice_xp_min          = int(data.get('voice_xp_min', 10))
+        cfg.voice_xp_max          = int(data.get('voice_xp_max', 20))
+        cfg.voice_interval        = int(data.get('voice_interval', 5))
+        cfg.voice_ignore_muted    = bool(data.get('voice_ignore_muted', True))
+        cfg.voice_ignore_deafened = bool(data.get('voice_ignore_deafened', True))
+        db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
 @app.route('/api/server/<gid>/leveling/level-roles', methods=['POST'])
 def api_lv_role_add(gid):
     if _require_login(): return jsonify({'error': 'Unauthorized'}), 401

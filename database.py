@@ -87,7 +87,13 @@ class LevelConfig(Base):
     levelup_channel_id = Column(String, nullable=True)
     levelup_message    = Column(Text, default='🎉 {user} hat **Level {level}** erreicht!')
     role_stack         = Column(Boolean, default=True)
-    cmd_channels_json  = Column(Text, default='[]')  # allowed channels for /rank, /leaderboard; empty = everywhere
+    cmd_channels_json    = Column(Text, default='[]')  # allowed channels for /rank, /leaderboard; empty = everywhere
+    voice_enabled        = Column(Boolean, default=False)
+    voice_xp_min         = Column(Integer, default=10)
+    voice_xp_max         = Column(Integer, default=20)
+    voice_interval       = Column(Integer, default=5)   # minutes between voice XP grants
+    voice_ignore_muted   = Column(Boolean, default=True)
+    voice_ignore_deafened= Column(Boolean, default=True)
 
     @property
     def cmd_channels(self):
@@ -151,10 +157,20 @@ def _migrate():
     from sqlalchemy import text, inspect as sa_inspect
     insp = sa_inspect(engine)
     cols = {c['name'] for c in insp.get_columns('level_configs')}
+    new_cols = {
+        'cmd_channels_json':   "TEXT DEFAULT '[]'",
+        'voice_enabled':       'BOOLEAN DEFAULT FALSE',
+        'voice_xp_min':        'INTEGER DEFAULT 10',
+        'voice_xp_max':        'INTEGER DEFAULT 20',
+        'voice_interval':      'INTEGER DEFAULT 5',
+        'voice_ignore_muted':  'BOOLEAN DEFAULT TRUE',
+        'voice_ignore_deafened': 'BOOLEAN DEFAULT TRUE',
+    }
     with engine.connect() as conn:
-        if 'cmd_channels_json' not in cols:
-            conn.execute(text("ALTER TABLE level_configs ADD COLUMN cmd_channels_json TEXT DEFAULT '[]'"))
-            conn.commit()
+        for col, typedef in new_cols.items():
+            if col not in cols:
+                conn.execute(text(f'ALTER TABLE level_configs ADD COLUMN {col} {typedef}'))
+        conn.commit()
 
 
 def init_db():

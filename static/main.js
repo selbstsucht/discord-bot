@@ -280,6 +280,23 @@ async function saveLvGeneral(gid) {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
+async function saveLvVoice(gid) {
+  const min = parseInt(document.getElementById('lv-voice-xp-min').value);
+  const max = parseInt(document.getElementById('lv-voice-xp-max').value);
+  if (min > max) { showToast('XP Min darf nicht größer als Max sein.', 'error'); return; }
+  try {
+    await api('POST', `/api/server/${gid}/leveling/voice`, {
+      voice_enabled:         document.getElementById('lv-voice-enabled').checked,
+      voice_xp_min:          min,
+      voice_xp_max:          max,
+      voice_interval:        parseInt(document.getElementById('lv-voice-interval').value),
+      voice_ignore_muted:    document.getElementById('lv-voice-ignore-muted').checked,
+      voice_ignore_deafened: document.getElementById('lv-voice-ignore-deafened').checked,
+    });
+    showToast('Voice XP Einstellungen gespeichert!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
 async function saveLvLevelup(gid) {
   try {
     await api('POST', `/api/server/${gid}/leveling/levelup`, {

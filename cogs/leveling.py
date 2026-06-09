@@ -2,7 +2,7 @@ import time
 import random
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from database import (get_session, LevelConfig, UserLevel, LevelRole,
                       XpMultiplierRole, XpMultiplierChannel, NoXpChannel, NoXpRole)
 
@@ -40,6 +40,60 @@ def progress_bar(current: int, total: int, length: int = 18) -> str:
 class LevelingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self._voice_last_xp: dict[str, dict[str, int]] = {}  # {guild_id: {user_id: timestamp}}
+        self.voice_xp_task.start()
+
+    def cog_unload(self):
+        self.voice_xp_task.cancel()
+
+    # ── Shared level-up handler ───────────────────────────────────────────────
+
+    async def _apply_level_up(self, guild, member, cfg, new_level, db, gid, fallback_channel=None):
+        level_roles = db.query(LevelRole).filter_by(guild_id=gid).order_by(LevelRole.level).all()
+        earned_role_ids = [lr.role_id for lr in level_roles if lr.level <= new_level]
+        exact_role_ids  = [lr.role_id for lr in level_roles if lr.level == new_level]
+        all_role_ids    = [lr.role_id for lr in level_roles]
+
+        try:
+            if cfg.role_stack:
+                for rid in earned_role_ids:
+                    role = guild.get_role(int(rid))
+                    if role and role not in member.roles:
+                        await member.add_roles(role, reason=f'Level {new_level} erreicht')
+            else:
+                for rid in all_role_ids:
+                    role = guild.get_role(int(rid))
+                    if role and role in member.roles and rid not in exact_role_ids:
+                        await member.remove_roles(role, reason='Level-Rolle ersetzt')
+                for rid in exact_role_ids:
+                    role = guild.get_role(int(rid))
+                    if role and role not in member.roles:
+                        await member.add_roles(role, reason=f'Level {new_level} erreicht')
+        except discord.Forbidden:
+            pass
+
+        if cfg.levelup_mode == 'disabled':
+            return
+
+        lv_msg = (cfg.levelup_message
+                  .replace('{user}', member.mention)
+                  .replace('{username}', member.display_name)
+                  .replace('{level}', str(new_level))
+                  .replace('{server}', guild.name))
+
+        if cfg.levelup_mode == 'dm':
+            try:
+                await member.send(lv_msg)
+            except discord.Forbidden:
+                pass
+        elif cfg.levelup_mode == 'custom' and cfg.levelup_channel_id:
+            ch = guild.get_channel(int(cfg.levelup_channel_id))
+            if ch:
+                await ch.send(lv_msg)
+        elif fallback_channel:
+            await fallback_channel.send(lv_msg)
+
+    # ── Message XP ───────────────────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -53,18 +107,15 @@ class LevelingCog(commands.Cog):
             if not cfg or not cfg.enabled:
                 return
 
-            # No-XP channel check
             no_xp_ch = {r.channel_id for r in db.query(NoXpChannel).filter_by(guild_id=gid).all()}
             if str(message.channel.id) in no_xp_ch:
                 return
 
-            # No-XP role check
             no_xp_roles = {r.role_id for r in db.query(NoXpRole).filter_by(guild_id=gid).all()}
             member_role_ids = {str(r.id) for r in message.author.roles}
             if no_xp_roles & member_role_ids:
                 return
 
-            # Cooldown check
             now = int(time.time())
             ul = db.query(UserLevel).filter_by(guild_id=gid, user_id=str(message.author.id)).first()
             if not ul:
@@ -74,7 +125,6 @@ class LevelingCog(commands.Cog):
             if now - ul.last_xp_at < cfg.cooldown:
                 return
 
-            # Calculate XP with multipliers
             base_xp = random.randint(cfg.xp_min, cfg.xp_max)
             multiplier = 1.0
 
@@ -94,65 +144,86 @@ class LevelingCog(commands.Cog):
             ul.xp += earned_xp
             ul.last_xp_at = now
 
-            # Recalculate level
             new_level, _, _ = xp_progress(ul.xp)
             ul.level = new_level
             db.commit()
 
             if new_level > old_level:
-                await self._handle_level_up(message, cfg, ul, new_level, db, gid)
+                await self._apply_level_up(
+                    message.guild, message.author, cfg, new_level, db, gid,
+                    fallback_channel=message.channel
+                )
         finally:
             db.close()
 
-    async def _handle_level_up(self, message, cfg, ul, new_level, db, gid):
-        # Assign level roles
-        level_roles = db.query(LevelRole).filter_by(guild_id=gid).order_by(LevelRole.level).all()
-        earned_role_ids = [lr.role_id for lr in level_roles if lr.level <= new_level]
-        exact_role_ids  = [lr.role_id for lr in level_roles if lr.level == new_level]
-        all_role_ids    = [lr.role_id for lr in level_roles]
+    # ── Voice XP Task ─────────────────────────────────────────────────────────
 
-        member = message.author
+    @tasks.loop(minutes=1)
+    async def voice_xp_task(self):
+        now = int(time.time())
+        db = get_session()
         try:
-            if cfg.role_stack:
-                # Add all earned roles
-                for rid in earned_role_ids:
-                    role = message.guild.get_role(int(rid))
-                    if role and role not in member.roles:
-                        await member.add_roles(role, reason=f'Level {new_level} erreicht')
-            else:
-                # Remove all level roles, add only the current one
-                for rid in all_role_ids:
-                    role = message.guild.get_role(int(rid))
-                    if role and role in member.roles and rid not in exact_role_ids:
-                        await member.remove_roles(role, reason='Level-Rolle ersetzt')
-                for rid in exact_role_ids:
-                    role = message.guild.get_role(int(rid))
-                    if role and role not in member.roles:
-                        await member.add_roles(role, reason=f'Level {new_level} erreicht')
-        except discord.Forbidden:
-            pass
+            for guild in self.bot.guilds:
+                gid = str(guild.id)
+                cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
+                if not cfg or not cfg.enabled or not cfg.voice_enabled:
+                    continue
 
-        # Level-up notification
-        if cfg.levelup_mode == 'disabled':
-            return
+                interval_secs = cfg.voice_interval * 60
+                no_xp_ch    = {r.channel_id for r in db.query(NoXpChannel).filter_by(guild_id=gid).all()}
+                no_xp_roles = {r.role_id    for r in db.query(NoXpRole).filter_by(guild_id=gid).all()}
 
-        lv_msg = (cfg.levelup_message
-                  .replace('{user}', member.mention)
-                  .replace('{username}', member.display_name)
-                  .replace('{level}', str(new_level))
-                  .replace('{server}', message.guild.name))
+                if gid not in self._voice_last_xp:
+                    self._voice_last_xp[gid] = {}
 
-        if cfg.levelup_mode == 'dm':
-            try:
-                await member.send(lv_msg)
-            except discord.Forbidden:
-                pass
-        elif cfg.levelup_mode == 'custom' and cfg.levelup_channel_id:
-            ch = message.guild.get_channel(int(cfg.levelup_channel_id))
-            if ch:
-                await ch.send(lv_msg)
-        else:  # current
-            await message.channel.send(lv_msg)
+                for vc in guild.voice_channels:
+                    if str(vc.id) in no_xp_ch:
+                        continue
+                    for member in vc.members:
+                        if member.bot:
+                            continue
+                        vs = member.voice
+                        if cfg.voice_ignore_muted and vs.self_mute:
+                            continue
+                        if cfg.voice_ignore_deafened and vs.self_deaf:
+                            continue
+
+                        uid = str(member.id)
+                        if now - self._voice_last_xp[gid].get(uid, 0) < interval_secs:
+                            continue
+
+                        member_role_ids = {str(r.id) for r in member.roles}
+                        if no_xp_roles & member_role_ids:
+                            continue
+
+                        xp_gain = random.randint(cfg.voice_xp_min, cfg.voice_xp_max)
+                        ul = db.query(UserLevel).filter_by(guild_id=gid, user_id=uid).first()
+                        if not ul:
+                            ul = UserLevel(guild_id=gid, user_id=uid)
+                            db.add(ul)
+
+                        old_level = ul.level
+                        ul.xp += xp_gain
+                        new_level, _, _ = xp_progress(ul.xp)
+                        ul.level = new_level
+                        db.commit()
+
+                        self._voice_last_xp[gid][uid] = now
+
+                        if new_level > old_level:
+                            fallback = guild.system_channel or next(
+                                (c for c in guild.text_channels if c.permissions_for(guild.me).send_messages), None
+                            )
+                            await self._apply_level_up(
+                                guild, member, cfg, new_level, db, gid,
+                                fallback_channel=fallback
+                            )
+        finally:
+            db.close()
+
+    @voice_xp_task.before_loop
+    async def before_voice_xp_task(self):
+        await self.bot.wait_until_ready()
 
     # ── /rank ─────────────────────────────────────────────────────────────────
 
@@ -179,7 +250,6 @@ class LevelingCog(commands.Cog):
             total_xp = ul.xp if ul else 0
             level, xp_in_level, xp_needed = xp_progress(total_xp)
 
-            # Server rank
             all_users = db.query(UserLevel).filter_by(guild_id=gid).order_by(UserLevel.xp.desc()).all()
             rank_pos = next((i + 1 for i, u in enumerate(all_users) if u.user_id == str(target.id)), len(all_users))
 
@@ -227,8 +297,8 @@ class LevelingCog(commands.Cog):
             for i, ul in enumerate(top):
                 prefix = medals[i] if i < 3 else f'`#{i+1}`'
                 level, xp_in, xp_need = xp_progress(ul.xp)
-                member = interaction.guild.get_member(int(ul.user_id))
-                name = member.display_name if member else f'<@{ul.user_id}>'
+                m = interaction.guild.get_member(int(ul.user_id))
+                name = m.display_name if m else f'<@{ul.user_id}>'
                 lines.append(f'{prefix} **{name}** — Level {level} · {ul.xp:,} XP')
 
             embed = discord.Embed(

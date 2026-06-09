@@ -305,6 +305,59 @@
         </div>
       </div>
 
+      <!-- Voice XP -->
+      <div class="card mb-4">
+        <div class="section-header" style="margin-bottom:16px">
+          <h3 style="font-size:16px;font-weight:700">Voice XP</h3>
+          <p class="text-muted" style="font-size:13px">Nutzer verdienen XP während sie in einem Voice-Channel sind.</p>
+        </div>
+        <div class="card-row">
+          <label class="toggle-label">
+            <span>Voice XP aktiviert</span>
+            <label class="toggle">
+              <input type="checkbox" id="lv-voice-enabled" {% if lv_cfg and lv_cfg.voice_enabled %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+        <div class="card-row">
+          <label class="field-label">XP pro Intervall</label>
+          <div class="input-row">
+            <input class="input" id="lv-voice-xp-min" type="number" min="1" max="500"
+                   value="{{ lv_cfg.voice_xp_min if lv_cfg else 10 }}" placeholder="Min">
+            <span class="text-muted">bis</span>
+            <input class="input" id="lv-voice-xp-max" type="number" min="1" max="500"
+                   value="{{ lv_cfg.voice_xp_max if lv_cfg else 20 }}" placeholder="Max">
+          </div>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Intervall (Minuten zwischen XP-Vergaben)</label>
+          <input class="input" id="lv-voice-interval" type="number" min="1" max="120"
+                 value="{{ lv_cfg.voice_interval if lv_cfg else 5 }}">
+        </div>
+        <div class="card-row">
+          <label class="toggle-label">
+            <span>Selbst-Gemutete ignorieren</span>
+            <label class="toggle">
+              <input type="checkbox" id="lv-voice-ignore-muted" {% if not lv_cfg or lv_cfg.voice_ignore_muted %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+        <div class="card-row">
+          <label class="toggle-label">
+            <span>Selbst-Gedeafeante ignorieren</span>
+            <label class="toggle">
+              <input type="checkbox" id="lv-voice-ignore-deafened" {% if not lv_cfg or lv_cfg.voice_ignore_deafened %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-primary" onclick="saveLvVoice('{{ guild_id }}')">Speichern</button>
+        </div>
+      </div>
+
       <!-- Level-Up Notification -->
       <div class="card mb-4">
         <div class="section-header" style="margin-bottom:16px">
