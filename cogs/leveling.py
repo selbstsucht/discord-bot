@@ -127,7 +127,7 @@ class LevelingCog(commands.Cog):
                 print(f'[Leveling] DB-Fehler UserLevel: {e}', flush=True)
                 return
             if not ul:
-                ul = UserLevel(guild_id=gid, user_id=str(message.author.id))
+                ul = UserLevel(guild_id=gid, user_id=str(message.author.id), xp=0, level=0, last_xp_at=0)
                 db.add(ul)
 
             if now - (ul.last_xp_at or 0) < cfg.cooldown:
@@ -148,8 +148,8 @@ class LevelingCog(commands.Cog):
                 multiplier = max(multiplier, ch_mults[str(message.channel.id)])
 
             earned_xp = int(base_xp * multiplier)
-            old_level = ul.level
-            ul.xp += earned_xp
+            old_level = ul.level or 0
+            ul.xp = (ul.xp or 0) + earned_xp
             ul.last_xp_at = now
             new_level, _, _ = xp_progress(ul.xp)
             ul.level = new_level
@@ -218,14 +218,15 @@ class LevelingCog(commands.Cog):
                         xp_gain = random.randint(cfg.voice_xp_min, cfg.voice_xp_max)
                         ul = db.query(UserLevel).filter_by(guild_id=gid, user_id=uid).first()
                         if not ul:
-                            ul = UserLevel(guild_id=gid, user_id=uid)
+                            ul = UserLevel(guild_id=gid, user_id=uid, xp=0, level=0, last_xp_at=0)
                             db.add(ul)
 
-                        old_level = ul.level
-                        ul.xp += xp_gain
+                        old_level = ul.level or 0
+                        ul.xp = (ul.xp or 0) + xp_gain
                         new_level, _, _ = xp_progress(ul.xp)
                         ul.level = new_level
                         db.commit()
+                        print(f'[VoiceXP] {member} +{xp_gain} XP (gesamt: {ul.xp})', flush=True)
 
                         self._voice_last_xp[gid][uid] = now
 
