@@ -60,6 +60,7 @@ class LevelingCog(commands.Cog):
                     role = guild.get_role(int(rid))
                     if role and role not in member.roles:
                         await member.add_roles(role, reason=f'Level {new_level} erreicht')
+                        print(f'[Roles] {member} → +{role.name}', flush=True)
             else:
                 for rid in all_role_ids:
                     role = guild.get_role(int(rid))
@@ -69,8 +70,11 @@ class LevelingCog(commands.Cog):
                     role = guild.get_role(int(rid))
                     if role and role not in member.roles:
                         await member.add_roles(role, reason=f'Level {new_level} erreicht')
-        except discord.Forbidden:
-            pass
+                        print(f'[Roles] {member} → +{role.name}', flush=True)
+        except discord.Forbidden as e:
+            print(f'[Roles] Forbidden – Bot-Rolle zu niedrig oder fehlende Berechtigung: {e}', flush=True)
+        except Exception as e:
+            print(f'[Roles] Fehler: {e}', flush=True)
 
         if cfg.levelup_mode == 'disabled':
             return
