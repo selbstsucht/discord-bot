@@ -130,7 +130,7 @@ class LevelingCog(commands.Cog):
                 ul = UserLevel(guild_id=gid, user_id=str(message.author.id))
                 db.add(ul)
 
-            if now - ul.last_xp_at < cfg.cooldown:
+            if now - (ul.last_xp_at or 0) < cfg.cooldown:
                 return
 
             base_xp = random.randint(cfg.xp_min, cfg.xp_max)
