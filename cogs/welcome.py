@@ -36,7 +36,7 @@ class WelcomeCog(commands.Cog):
             if not channel:
                 return
             msg = (cfg.message
-                   .replace('{user}', str(member))
+                   .replace('{user}', member.mention)
                    .replace('{username}', member.display_name)
                    .replace('{server}', member.guild.name))
             await channel.send(msg)

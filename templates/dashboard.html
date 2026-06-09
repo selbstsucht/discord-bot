@@ -116,7 +116,7 @@
           <label class="field-label">Nachricht</label>
           <textarea id="goodbye-message" class="textarea" rows="3"
             placeholder="Nachricht eingeben…">{{ goodbye.message if goodbye else '😢 {user} hat den Server verlassen.' }}</textarea>
-          <p class="hint">Platzhalter: <code>{user}</code> Name#0000 · <code>{username}</code> Name · <code>{server}</code> Servername</p>
+          <p class="hint">Platzhalter: <code>{user}</code> Erwähnung · <code>{username}</code> Name · <code>{server}</code> Servername</p>
         </div>
         <div class="card-actions">
           <button class="btn btn-primary" onclick="saveGoodbye('{{ guild_id }}')">Speichern</button>
