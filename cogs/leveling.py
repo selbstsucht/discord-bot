@@ -106,7 +106,7 @@ class LevelingCog(commands.Cog):
             try:
                 cfg = db.query(LevelConfig).filter_by(guild_id=gid).first()
             except Exception as e:
-                print(f'[Leveling] DB-Fehler beim Lesen der Config: {e}')
+                print(f'[Leveling] DB-Fehler Config: {e}', flush=True)
                 return
             if not cfg or not cfg.enabled:
                 return
@@ -121,7 +121,11 @@ class LevelingCog(commands.Cog):
                 return
 
             now = int(time.time())
-            ul = db.query(UserLevel).filter_by(guild_id=gid, user_id=str(message.author.id)).first()
+            try:
+                ul = db.query(UserLevel).filter_by(guild_id=gid, user_id=str(message.author.id)).first()
+            except Exception as e:
+                print(f'[Leveling] DB-Fehler UserLevel: {e}', flush=True)
+                return
             if not ul:
                 ul = UserLevel(guild_id=gid, user_id=str(message.author.id))
                 db.add(ul)
@@ -147,16 +151,23 @@ class LevelingCog(commands.Cog):
             old_level = ul.level
             ul.xp += earned_xp
             ul.last_xp_at = now
-
             new_level, _, _ = xp_progress(ul.xp)
             ul.level = new_level
-            db.commit()
+
+            try:
+                db.commit()
+                print(f'[XP] {message.author} +{earned_xp} XP (gesamt: {ul.xp})', flush=True)
+            except Exception as e:
+                print(f'[Leveling] DB-Fehler commit: {e}', flush=True)
+                return
 
             if new_level > old_level:
                 await self._apply_level_up(
                     message.guild, message.author, cfg, new_level, db, gid,
                     fallback_channel=message.channel
                 )
+        except Exception as e:
+            print(f'[Leveling] Unbekannter Fehler on_message: {e}', flush=True)
         finally:
             db.close()
 

@@ -17,8 +17,8 @@ def shutdown(sig, frame):
 signal.signal(signal.SIGTERM, shutdown)
 signal.signal(signal.SIGINT, shutdown)
 
-bot  = subprocess.Popen([sys.executable, 'bot.py'])
-dash = subprocess.Popen([sys.executable, 'dashboard.py'])
+bot  = subprocess.Popen([sys.executable, '-u', 'bot.py'])
+dash = subprocess.Popen([sys.executable, '-u', 'dashboard.py'])
 procs = [bot, dash]
 
 # If either process dies, kill both and exit (Railway will restart the service)
