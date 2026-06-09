@@ -1,8 +1,10 @@
 import json
+import os
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, relationship
 
-engine = create_engine('sqlite:///bot.db', connect_args={"check_same_thread": False})
+DB_PATH = os.environ.get('DB_PATH', 'bot.db')
+engine = create_engine(f'sqlite:///{DB_PATH}', connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autoflush=True)
 
 
