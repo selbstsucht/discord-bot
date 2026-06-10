@@ -34,6 +34,10 @@
       <button class="sidebar-btn" onclick="switchTab('leveling', this)">
         <span class="sidebar-icon">⭐</span> Leveling
       </button>
+      <div class="sidebar-section-label">Verwaltung</div>
+      <button class="sidebar-btn" onclick="switchTab('admins', this)">
+        <span class="sidebar-icon">🔐</span> Bot-Admins
+      </button>
     </nav>
     <div class="sidebar-footer">
       {% if user.avatar %}
@@ -556,6 +560,45 @@
             <option value="{{ ch.id }}"># {{ ch.name }}</option>
             {% endfor %}
           </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Bot-Admins Tab ──────────────────────────────────── -->
+    <section id="tab-admins" class="tab-section">
+      <div class="section-header">
+        <h2>Bot-Admins</h2>
+        <p class="text-muted">Diese Nutzer können /admin Befehle verwenden, unabhängig von Discord-Rollen.</p>
+      </div>
+      <div class="card">
+        <div class="card-row">
+          <label class="field-label">User-ID hinzufügen</label>
+          <div class="add-row">
+            <input class="input" id="admin-uid-input" placeholder="Discord User-ID (z.B. 123456789012345678)" maxlength="20">
+            <button class="btn btn-primary" onclick="addBotAdmin('{{ guild_id }}')">Hinzufügen</button>
+          </div>
+          <p class="hint">Die User-ID findest du in Discord unter Einstellungen → Erweitert → Entwicklermodus aktivieren → Rechtsklick auf Nutzer → ID kopieren.</p>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Aktuelle Admins</label>
+          <div id="admin-list" class="role-chips">
+            {% for a in bot_admins %}
+            <span class="role-chip" id="admin-entry-{{ a.id }}">
+              {{ a.user_id }}
+              <button class="chip-remove" onclick="removeBotAdmin('{{ guild_id }}', {{ a.id }})">×</button>
+            </span>
+            {% else %}
+            <span class="text-muted" id="admin-empty" style="font-size:13px">Noch keine Admins hinzugefügt.</span>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card-row" style="background:var(--bg3);border-radius:var(--radius);padding:14px;border:1px solid var(--border)">
+          <label class="field-label">Verfügbare Befehle</label>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+            <code style="display:block">/admin general unflood [anzahl]</code>
+            <code style="display:block">/admin levelsystem resetxp / setlevel / givexp / clearlevels</code>
+            <code style="display:block">/admin moderation timeout / kick / ban</code>
+          </div>
         </div>
       </div>
     </section>

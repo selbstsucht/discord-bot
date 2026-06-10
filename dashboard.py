@@ -7,7 +7,8 @@ from database import (init_db, get_session,
                       WelcomeConfig, GoodbyeConfig, AutoRoleConfig,
                       SelfRoleMessage, SelfRoleButton,
                       LevelConfig, UserLevel, LevelRole,
-                      XpMultiplierRole, XpMultiplierChannel, NoXpChannel, NoXpRole)
+                      XpMultiplierRole, XpMultiplierChannel, NoXpChannel, NoXpRole,
+                      BotAdminConfig)
 
 load_dotenv()
 init_db()
@@ -277,6 +278,8 @@ def dashboard(guild_id):
         no_xp_ch  = db.query(NoXpChannel).filter_by(guild_id=guild_id).all()
         no_xp_ro  = db.query(NoXpRole).filter_by(guild_id=guild_id).all()
 
+        bot_admins = db.query(BotAdminConfig).filter_by(guild_id=guild_id).all()
+
         return render_template('dashboard.html',
             user=session['user'],
             guild=guild_info,
@@ -296,6 +299,7 @@ def dashboard(guild_id):
             no_xp_ch=[{'id': r.id, 'channel_id': r.channel_id} for r in no_xp_ch],
             no_xp_ro=[{'id': r.id, 'role_id': r.role_id} for r in no_xp_ro],
             cmd_channels=lv_cfg.cmd_channels if lv_cfg else [],
+            bot_admins=[{'id': a.id, 'user_id': a.user_id} for a in bot_admins],
         )
     finally:
         db.close()
@@ -771,6 +775,41 @@ def api_lv_cmdch_del(gid, channel_id):
                 chs.remove(channel_id)
                 cfg.cmd_channels = chs
                 db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+# ── API: Bot-Admins ───────────────────────────────────────────────────────────
+
+@app.route('/api/server/<gid>/bot-admins', methods=['POST'])
+def api_admin_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    user_id = request.json.get('user_id', '').strip()
+    if not user_id.isdigit():
+        return jsonify({'error': 'Ungültige User-ID'}), 400
+    db = get_session()
+    try:
+        exists = db.query(BotAdminConfig).filter_by(guild_id=gid, user_id=user_id).first()
+        if exists:
+            return jsonify({'error': 'Bereits vorhanden'}), 409
+        entry = BotAdminConfig(guild_id=gid, user_id=user_id)
+        db.add(entry)
+        db.commit()
+        return jsonify({'ok': True, 'id': entry.id})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/bot-admins/<int:aid>', methods=['DELETE'])
+def api_admin_del(gid, aid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        entry = db.query(BotAdminConfig).filter_by(id=aid, guild_id=gid).first()
+        if entry:
+            db.delete(entry)
+            db.commit()
         return jsonify({'ok': True})
     finally:
         db.close()

@@ -49,6 +49,13 @@ class AutoRoleConfig(Base):
         self.role_ids_json = json.dumps(value)
 
 
+class BotAdminConfig(Base):
+    __tablename__ = 'bot_admin_configs'
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(String, nullable=False)
+    user_id  = Column(String, nullable=False)
+
+
 class SelfRoleMessage(Base):
     __tablename__ = 'selfrole_messages'
     id               = Column(Integer, primary_key=True, autoincrement=True)

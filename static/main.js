@@ -451,6 +451,41 @@ async function deleteCmdCh(gid, channel_id) {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
+/* ── Bot-Admins ──────────────────────────────────────────────── */
+async function addBotAdmin(gid) {
+  const input = document.getElementById('admin-uid-input');
+  const user_id = input.value.trim();
+  if (!user_id) { showToast('Bitte eine User-ID eingeben.', 'error'); return; }
+  if (!/^\d+$/.test(user_id)) { showToast('Ungültige User-ID.', 'error'); return; }
+  try {
+    const res = await api('POST', `/api/server/${gid}/bot-admins`, { user_id });
+    document.getElementById('admin-empty')?.remove();
+    const chip = document.createElement('span');
+    chip.className = 'role-chip';
+    chip.id = `admin-entry-${res.id}`;
+    chip.innerHTML = `${user_id}<button class="chip-remove" onclick="removeBotAdmin('${gid}',${res.id})">×</button>`;
+    document.getElementById('admin-list').appendChild(chip);
+    input.value = '';
+    showToast('Admin hinzugefügt!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function removeBotAdmin(gid, id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/bot-admins/${id}`);
+    document.getElementById(`admin-entry-${id}`)?.remove();
+    if (!document.querySelectorAll('#admin-list .role-chip').length) {
+      const empty = document.createElement('span');
+      empty.id = 'admin-empty';
+      empty.className = 'text-muted';
+      empty.style.fontSize = '13px';
+      empty.textContent = 'Noch keine Admins hinzugefügt.';
+      document.getElementById('admin-list').appendChild(empty);
+    }
+    showToast('Admin entfernt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
 /* ── Self-Roles: Drag & Drop Sortierung ──────────────────────── */
 function initSrDragDrop() {
   const list = document.getElementById('selfroles-list');
