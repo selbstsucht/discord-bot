@@ -19,9 +19,15 @@ async def on_ready():
     print(f'✅ Bot eingeloggt als {bot.user} (ID: {bot.user.id})')
     try:
         synced = await bot.tree.sync()
-        print(f'   Slash-Commands synchronisiert: {len(synced)}')
+        print(f'   Global sync: {len(synced)} Commands')
     except Exception as e:
-        print(f'   Sync-Fehler: {e}')
+        print(f'   Global sync Fehler: {e}')
+    for guild in bot.guilds:
+        try:
+            gs = await bot.tree.sync(guild=guild)
+            print(f'   Guild sync [{guild.name}]: {len(gs)} Commands')
+        except Exception as e:
+            print(f'   Guild sync Fehler [{guild.name}]: {e}')
 
 
 async def main():
