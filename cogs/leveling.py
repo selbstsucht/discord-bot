@@ -8,8 +8,12 @@ from database import (get_session, LevelConfig, UserLevel, LevelRole,
                       XpMultiplierRole, XpMultiplierChannel, NoXpChannel, NoXpRole)
 
 
+_XP_TABLE = [40, 60, 70, 80, 90, 140, 165, 190, 200, 205, 280, 305, 325, 340, 350]
+
 def xp_for_next_level(level: int) -> int:
-    return 5 * level * level + 80 * level + 350
+    if level < len(_XP_TABLE):
+        return _XP_TABLE[level]
+    return 350 + 40 * (level - 14)
 
 
 def xp_progress(total_xp: int):
