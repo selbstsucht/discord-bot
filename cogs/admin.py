@@ -41,7 +41,6 @@ class AdminCog(commands.Cog):
     admin = app_commands.Group(
         name='admin',
         description='Bot-Admin Befehle',
-        default_member_permissions=discord.Permissions(administrator=True),
     )
 
     # ── /admin general ────────────────────────────────────────────────────────
