@@ -393,7 +393,21 @@ code {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  cursor: default;
 }
+.sr-card.dragging    { opacity: .35; border-style: dashed; }
+.sr-card.drag-over   { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.sr-drag-handle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  color: var(--text3);
+  font-size: 16px;
+  user-select: none;
+}
+.sr-drag-handle:active { cursor: grabbing; }
+.sr-drag-handle span   { font-size: 12px; color: var(--text3); }
 
 .sr-embed-preview {
   display: flex;

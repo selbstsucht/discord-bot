@@ -180,12 +180,17 @@
         <p class="text-muted">Erstelle Nachrichten mit Buttons, über die Nutzer sich selbst Rollen geben können.</p>
       </div>
 
-      <button class="btn btn-primary mb-4"
-              onclick="openCreateModal('{{ guild_id }}')">+ Neue Nachricht erstellen</button>
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="openCreateModal('{{ guild_id }}')">+ Neue Nachricht erstellen</button>
+        {% if selfroles|length > 1 %}
+        <button class="btn btn-secondary" onclick="applySrOrder('{{ guild_id }}')">↕ Reihenfolge in Discord anwenden</button>
+        {% endif %}
+      </div>
 
       <div id="selfroles-list">
         {% for sr in selfroles %}
-        <div class="sr-card" id="sr-card-{{ sr.id }}">
+        <div class="sr-card" id="sr-card-{{ sr.id }}" draggable="true">
+          <div class="sr-drag-handle">⠿ <span>Ziehen zum Sortieren</span></div>
           <div class="sr-embed-preview" style="border-left-color: {{ sr.embed_color }}">
             {% if sr.embed_image_url %}
             <img src="{{ sr.embed_image_url }}" class="sr-embed-img" alt="embed image">

@@ -24,6 +24,87 @@ API           = 'https://discord.com/api/v10'
 STYLE_MAP = {'primary': 1, 'secondary': 2, 'success': 3, 'danger': 4}
 
 
+def _build_sr_payload(sm):
+    embed = {
+        'title':       sm.embed_title,
+        'description': sm.embed_description,
+        'color':       sm.embed_color or 0x5865F2,
+    }
+    if sm.embed_image_url:
+        embed['image'] = {'url': sm.embed_image_url}
+
+    itype = sm.interaction_type or 'buttons'
+
+    if itype == 'reactions':
+        return {'embeds': [embed], 'components': []}
+    elif itype == 'select_menu':
+        options = []
+        for btn in sm.buttons[:25]:
+            opt = {'label': btn.label[:100], 'value': btn.role_id}
+            if btn.emoji:
+                opt['emoji'] = {'name': btn.emoji}
+            options.append(opt)
+        if not options:
+            return None
+        max_vals = 1 if sm.single_select else min(len(options), 25)
+        return {'embeds': [embed], 'components': [{
+            'type': 1,
+            'components': [{
+                'type':        3,
+                'custom_id':   f'selfrole_menu_{sm.id}',
+                'options':     options,
+                'min_values':  0,
+                'max_values':  max_vals,
+                'placeholder': 'Rolle wählen…' if sm.single_select else 'Rollen wählen…',
+            }]
+        }]}
+    else:
+        components, row = [], {'type': 1, 'components': []}
+        for i, btn in enumerate(sm.buttons[:25]):
+            if i > 0 and i % 5 == 0:
+                components.append(row)
+                row = {'type': 1, 'components': []}
+            b = {'type': 2, 'label': btn.label,
+                 'custom_id': f'selfrole_{sm.id}_{btn.role_id}',
+                 'style': STYLE_MAP.get(btn.style, 1)}
+            if btn.emoji:
+                b['emoji'] = {'name': btn.emoji}
+            row['components'].append(b)
+        if row['components']:
+            components.append(row)
+        return {'embeds': [embed], 'components': components}
+
+
+def _post_sr_message(sm, db):
+    if not sm.channel_id:
+        return False, 'Kein Channel ausgewählt'
+    payload = _build_sr_payload(sm)
+    if payload is None:
+        return False, 'Mindestens eine Option/Rolle erforderlich'
+    itype = sm.interaction_type or 'buttons'
+    if itype == 'reactions' and sm.message_id:
+        requests.delete(f'{API}/channels/{sm.channel_id}/messages/{sm.message_id}/reactions',
+                        headers={'Authorization': f'Bot {BOT_TOKEN}'})
+    if sm.message_id:
+        r = requests.patch(f'{API}/channels/{sm.channel_id}/messages/{sm.message_id}',
+                           json=payload, headers=_bot())
+    else:
+        r = requests.post(f'{API}/channels/{sm.channel_id}/messages',
+                          json=payload, headers=_bot())
+    if not r.ok:
+        return False, r.text
+    sm.message_id = r.json()['id']
+    db.commit()
+    if itype == 'reactions':
+        for btn in sm.buttons:
+            if btn.emoji:
+                requests.put(
+                    f'{API}/channels/{sm.channel_id}/messages/{sm.message_id}'
+                    f'/reactions/{quote(btn.emoji.strip(), safe="")}/@me',
+                    headers={'Authorization': f'Bot {BOT_TOKEN}'})
+    return True, None
+
+
 def _bearer(token):
     return {'Authorization': f'Bearer {token}'}
 
@@ -159,7 +240,7 @@ def dashboard(guild_id):
         welcome  = db.query(WelcomeConfig).filter_by(guild_id=guild_id).first()
         goodbye  = db.query(GoodbyeConfig).filter_by(guild_id=guild_id).first()
         autorole = db.query(AutoRoleConfig).filter_by(guild_id=guild_id).first()
-        sr_msgs  = db.query(SelfRoleMessage).filter_by(guild_id=guild_id).all()
+        sr_msgs  = db.query(SelfRoleMessage).filter_by(guild_id=guild_id).order_by(SelfRoleMessage.sort_order).all()
 
         selfroles = []
         for sm in sr_msgs:
@@ -364,90 +445,54 @@ def api_sr_post(gid, mid):
         if not sm.channel_id:
             return jsonify({'error': 'Kein Channel ausgewählt'}), 400
 
-        embed = {
-            'title':       sm.embed_title,
-            'description': sm.embed_description,
-            'color':       sm.embed_color or 0x5865F2,
-        }
-        if sm.embed_image_url:
-            embed['image'] = {'url': sm.embed_image_url}
+        ok, err = _post_sr_message(sm, db)
+        if ok:
+            return jsonify({'ok': True, 'message_id': sm.message_id})
+        return jsonify({'error': err}), 400
+    finally:
+        db.close()
 
-        itype = sm.interaction_type or 'buttons'
 
-        if itype == 'reactions':
-            payload = {'embeds': [embed], 'components': []}
-        elif itype == 'select_menu':
-            options = []
-            for btn in sm.buttons[:25]:
-                opt = {'label': btn.label[:100], 'value': btn.role_id}
-                if btn.emoji:
-                    opt['emoji'] = {'name': btn.emoji}
-                options.append(opt)
-            if not options:
-                return jsonify({'error': 'Mindestens eine Option/Rolle erforderlich'}), 400
-            max_vals = 1 if sm.single_select else min(len(options), 25)
-            payload = {'embeds': [embed], 'components': [{
-                'type': 1,
-                'components': [{
-                    'type':        3,
-                    'custom_id':   f'selfrole_menu_{sm.id}',
-                    'options':     options,
-                    'min_values':  0,
-                    'max_values':  max_vals,
-                    'placeholder': 'Rolle wählen…' if sm.single_select else 'Rollen wählen…',
-                }]
-            }]}
-        else:  # buttons
-            components = []
-            row = {'type': 1, 'components': []}
-            for i, btn in enumerate(sm.buttons[:25]):
-                if i > 0 and i % 5 == 0:
-                    components.append(row)
-                    row = {'type': 1, 'components': []}
-                b = {
-                    'type':      2,
-                    'label':     btn.label,
-                    'custom_id': f'selfrole_{sm.id}_{btn.role_id}',
-                    'style':     STYLE_MAP.get(btn.style, 1),
-                }
-                if btn.emoji:
-                    b['emoji'] = {'name': btn.emoji}
-                row['components'].append(b)
-            if row['components']:
-                components.append(row)
-            payload = {'embeds': [embed], 'components': components}
+# ── API: Self-Role Reorder ───────────────────────────────────────────────────
 
-        # For reactions: clear existing reactions before (re-)posting
-        if itype == 'reactions' and sm.message_id:
-            requests.delete(
-                f'{API}/channels/{sm.channel_id}/messages/{sm.message_id}/reactions',
-                headers={'Authorization': f'Bot {BOT_TOKEN}'})
-
-        if sm.message_id:
-            r = requests.patch(
-                f'{API}/channels/{sm.channel_id}/messages/{sm.message_id}',
-                json=payload, headers=_bot())
-        else:
-            r = requests.post(
-                f'{API}/channels/{sm.channel_id}/messages',
-                json=payload, headers=_bot())
-
-        if not r.ok:
-            return jsonify({'error': r.text}), 400
-
-        sm.message_id = r.json()['id']
+@app.route('/api/server/<gid>/selfroles/reorder', methods=['POST'])
+def api_sr_reorder(gid):
+    if _require_login():
+        return jsonify({'error': 'Unauthorized'}), 401
+    ordered_ids = [int(x) for x in request.json.get('order', [])]
+    db = get_session()
+    try:
+        for i, mid in enumerate(ordered_ids):
+            sm = db.query(SelfRoleMessage).filter_by(id=mid, guild_id=gid).first()
+            if sm:
+                sm.sort_order = i
         db.commit()
 
-        # Add emoji reactions after posting
-        if itype == 'reactions':
-            for btn in sm.buttons:
-                if btn.emoji:
-                    requests.put(
-                        f'{API}/channels/{sm.channel_id}/messages/{sm.message_id}'
-                        f'/reactions/{quote(btn.emoji.strip(), safe="")}/@me',
-                        headers={'Authorization': f'Bot {BOT_TOKEN}'})
+        # Group already-posted messages by channel
+        from collections import defaultdict
+        by_channel = defaultdict(list)
+        for mid in ordered_ids:
+            sm = db.query(SelfRoleMessage).filter_by(id=mid, guild_id=gid).first()
+            if sm and sm.channel_id and sm.message_id:
+                by_channel[sm.channel_id].append(sm)
 
-        return jsonify({'ok': True, 'message_id': sm.message_id})
+        errors = []
+        for channel_id, msgs in by_channel.items():
+            if len(msgs) < 2:
+                continue
+            for sm in msgs:
+                requests.delete(f'{API}/channels/{channel_id}/messages/{sm.message_id}',
+                                headers={'Authorization': f'Bot {BOT_TOKEN}'})
+                sm.message_id = None
+            db.commit()
+            for sm in msgs:
+                ok, err = _post_sr_message(sm, db)
+                if not ok:
+                    errors.append(f'{sm.embed_title}: {err}')
+
+        if errors:
+            return jsonify({'ok': False, 'errors': errors}), 207
+        return jsonify({'ok': True})
     finally:
         db.close()
 

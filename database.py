@@ -61,6 +61,7 @@ class SelfRoleMessage(Base):
     embed_image_url  = Column(String, nullable=True)
     interaction_type = Column(String, default='buttons')   # buttons | reactions | select_menu
     single_select    = Column(Boolean, default=False)
+    sort_order       = Column(Integer, default=0)
     buttons          = relationship('SelfRoleButton', back_populates='sr_message',
                                     cascade='all, delete-orphan')
 
@@ -189,6 +190,7 @@ def _migrate():
     _add_cols('selfrole_messages', {
         'interaction_type': "TEXT DEFAULT 'buttons'",
         'single_select':    'BOOLEAN DEFAULT false',
+        'sort_order':       'INTEGER DEFAULT 0',
     })
 
 

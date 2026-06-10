@@ -451,6 +451,48 @@ async function deleteCmdCh(gid, channel_id) {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
+/* ── Self-Roles: Drag & Drop Sortierung ──────────────────────── */
+function initSrDragDrop() {
+  const list = document.getElementById('selfroles-list');
+  if (!list) return;
+  let dragging = null;
+
+  list.querySelectorAll('.sr-card').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      dragging = card;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      list.querySelectorAll('.sr-card').forEach(c => c.classList.remove('drag-over'));
+      dragging = null;
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (!dragging || card === dragging) return;
+      list.querySelectorAll('.sr-card').forEach(c => c.classList.remove('drag-over'));
+      card.classList.add('drag-over');
+      const mid = card.getBoundingClientRect().top + card.getBoundingClientRect().height / 2;
+      list.insertBefore(dragging, e.clientY < mid ? card : card.nextSibling);
+    });
+    card.addEventListener('drop', e => e.preventDefault());
+  });
+}
+
+async function applySrOrder(gid) {
+  const order = Array.from(document.querySelectorAll('#selfroles-list .sr-card'))
+    .map(c => c.id.replace('sr-card-', ''));
+  try {
+    showToast('Reihenfolge wird angewendet…', 'info');
+    await api('POST', `/api/server/${gid}/selfroles/reorder`, { order });
+    showToast('Reihenfolge gespeichert und in Discord aktualisiert!');
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+document.addEventListener('DOMContentLoaded', initSrDragDrop);
+
 /* ── Util ────────────────────────────────────────────────────── */
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
