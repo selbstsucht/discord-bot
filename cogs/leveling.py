@@ -1,3 +1,4 @@
+import re
 import time
 import random
 import discord
@@ -8,7 +9,7 @@ from database import (get_session, LevelConfig, UserLevel, LevelRole,
 
 
 def xp_for_next_level(level: int) -> int:
-    return (6 * level * level + 60 * level + 120) // 10
+    return 5 * level * level + 80 * level + 350
 
 
 def xp_progress(total_xp: int):
@@ -102,6 +103,10 @@ class LevelingCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not message.guild:
+            return
+        # Nachrichten die nur aus Mentions/Emotes bestehen ignorieren
+        real_content = re.sub(r'<[^>]+>', '', message.content).strip()
+        if len(real_content) < 3:
             return
 
         db = get_session()
