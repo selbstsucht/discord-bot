@@ -445,6 +445,12 @@ code {
   margin-left: 2px;
 }
 .chip-remove:hover { color: #fff; }
+.chip-disabled {
+  background: rgba(237,66,69,.15);
+  color: #f38ba8;
+  border-color: rgba(237,66,69,.3);
+  opacity: 0.75;
+}
 
 /* ── Self-Role Cards ────────────────────────────────────────── */
 .sr-card {

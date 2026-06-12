@@ -163,6 +163,25 @@ class NoXpRole(Base):
     role_id  = Column(String, nullable=False)
 
 
+class WarnEntry(Base):
+    __tablename__ = 'warn_entries'
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id     = Column(String, nullable=False)
+    user_id      = Column(String, nullable=False)
+    moderator_id = Column(String, nullable=False)
+    reason       = Column(Text, nullable=False)
+    created_at   = Column(String, nullable=False)
+
+
+class BadWordConfig(Base):
+    __tablename__ = 'bad_word_configs'
+    id       = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id = Column(String, nullable=False)
+    word     = Column(String, nullable=False)
+    enabled  = Column(Boolean, default=True)
+    __table_args__ = (UniqueConstraint('guild_id', 'word', name='uq_bad_word'),)
+
+
 def _migrate():
     from sqlalchemy import text, inspect as sa_inspect
 

@@ -34,6 +34,10 @@
       <button class="sidebar-btn" onclick="switchTab('leveling', this)">
         <span class="sidebar-icon">⭐</span> Leveling
       </button>
+      <div class="sidebar-section-label">Moderation</div>
+      <button class="sidebar-btn" onclick="switchTab('moderation', this)">
+        <span class="sidebar-icon">🛡️</span> Bad-Words
+      </button>
       <div class="sidebar-section-label">Verwaltung</div>
       <button class="sidebar-btn" onclick="switchTab('admins', this)">
         <span class="sidebar-icon">🔐</span> Bot-Admins
@@ -564,6 +568,46 @@
       </div>
     </section>
 
+    <!-- ── Moderation Tab ─────────────────────────────────── -->
+    <section id="tab-moderation" class="tab-section">
+      <div class="section-header">
+        <h2>Bad-Word Filter</h2>
+        <p class="text-muted">Nachrichten mit diesen Wörtern werden automatisch gelöscht und der Nutzer erhält einen Auto-Warn.</p>
+      </div>
+      <div class="card">
+        <div class="card-row">
+          <label class="field-label">Wort hinzufügen</label>
+          <div class="add-row">
+            <input class="input" id="bw-input" placeholder="Verbotenes Wort eingeben…" maxlength="100">
+            <button class="btn btn-primary" onclick="addBadWord('{{ guild_id }}')">Hinzufügen</button>
+          </div>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Bad-Word Liste</label>
+          <div id="bw-list" class="role-chips">
+            {% for w in bad_words %}
+            <span class="role-chip {% if not w.enabled %}chip-disabled{% endif %}" id="bw-entry-{{ w.id }}" title="Klicken zum {{ 'Deaktivieren' if w.enabled else 'Aktivieren' }}" style="cursor:pointer">
+              <span onclick="toggleBadWord('{{ guild_id }}', {{ w.id }})">{{ w.word }}</span>
+              <button class="chip-remove" onclick="removeBadWord('{{ guild_id }}', {{ w.id }})">×</button>
+            </span>
+            {% else %}
+            <span class="text-muted" id="bw-empty" style="font-size:13px">Noch keine Bad-Words eingetragen.</span>
+            {% endfor %}
+          </div>
+          <p class="hint" style="margin-top:8px">Klicke auf ein Wort um es zu aktivieren/deaktivieren. Rote Chips sind deaktiviert.</p>
+        </div>
+        <div class="card-row" style="background:var(--bg3);border-radius:var(--radius);padding:14px;border:1px solid var(--border)">
+          <label class="field-label">Wie es funktioniert</label>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;font-size:13px;color:var(--text-muted)">
+            <span>• Nachrichten werden auf Bad-Words geprüft (Groß-/Kleinschreibung egal)</span>
+            <span>• Nachricht wird automatisch gelöscht</span>
+            <span>• Nutzer erhält einen Auto-Warn mit Begründung</span>
+            <span>• Warn wird in der Warnliste gespeichert (<code>/admin moderation checkwarns</code>)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Bot-Admins Tab ──────────────────────────────────── -->
     <section id="tab-admins" class="tab-section">
       <div class="section-header">
@@ -598,6 +642,8 @@
             <code style="display:block">/admin general unflood [anzahl]</code>
             <code style="display:block">/admin levelsystem resetxp / setlevel / givexp / clearlevels</code>
             <code style="display:block">/admin moderation timeout / kick / ban</code>
+            <code style="display:block">/admin moderation warn [user] [grund]</code>
+            <code style="display:block">/admin moderation checkwarns [user]</code>
           </div>
         </div>
       </div>

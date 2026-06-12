@@ -1,8 +1,10 @@
 import re
 import discord
+from datetime import datetime, timezone
 from datetime import timedelta
 from discord import app_commands
-from database import get_session, BotAdminConfig, UserLevel
+from discord.ext import commands
+from database import get_session, BotAdminConfig, UserLevel, WarnEntry, BadWordConfig
 
 _XP_TABLE = [40, 60, 70, 80, 90, 140, 165, 190, 200, 205, 280, 305, 325, 340, 350]
 
@@ -33,7 +35,55 @@ async def _is_admin(interaction: discord.Interaction) -> bool:
         db.close()
 
 
+class AdminCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or not message.guild:
+            return
+        db = get_session()
+        try:
+            words = db.query(BadWordConfig).filter_by(
+                guild_id=str(message.guild.id), enabled=True).all()
+            if not words:
+                return
+            content_lower = message.content.lower()
+            triggered = next((w.word for w in words if w.word.lower() in content_lower), None)
+            if not triggered:
+                return
+            try:
+                await message.delete()
+            except discord.Forbidden:
+                pass
+            entry = WarnEntry(
+                guild_id=str(message.guild.id),
+                user_id=str(message.author.id),
+                moderator_id=str(self.bot.user.id),
+                reason=f'Auto-Warn: Verbotenes Wort "{triggered}"',
+                created_at=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
+            )
+            db.add(entry)
+            db.commit()
+            warn_count = db.query(WarnEntry).filter_by(
+                guild_id=str(message.guild.id),
+                user_id=str(message.author.id)).count()
+            try:
+                await message.channel.send(
+                    f'⚠️ {message.author.mention} deine Nachricht enthielt ein verbotenes Wort '
+                    f'und wurde entfernt. (Warn {warn_count})',
+                    delete_after=8,
+                )
+            except discord.Forbidden:
+                pass
+        finally:
+            db.close()
+
+
 async def setup(bot):
+    await bot.add_cog(AdminCog(bot))
+
     admin_group    = app_commands.Group(name='admin',       description='Bot-Admin Befehle')
     general_group  = app_commands.Group(name='general',     description='Allgemeine Befehle')
     levelsys_group = app_commands.Group(name='levelsystem', description='Leveling verwalten')
@@ -140,6 +190,69 @@ async def setup(bot):
             db.close()
 
     # ── /admin moderation ─────────────────────────────────────────────────────
+
+    @mod_group.command(name='warn', description='Verwarnt einen Nutzer')
+    @app_commands.describe(member='Der Nutzer', grund='Grund der Verwarnung')
+    async def warn_cmd(interaction: discord.Interaction, member: discord.Member, grund: str):
+        if not await _is_admin(interaction):
+            await interaction.response.send_message('❌ Keine Berechtigung.', ephemeral=True)
+            return
+        db = get_session()
+        try:
+            entry = WarnEntry(
+                guild_id=str(interaction.guild_id),
+                user_id=str(member.id),
+                moderator_id=str(interaction.user.id),
+                reason=grund,
+                created_at=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
+            )
+            db.add(entry)
+            db.commit()
+            warn_count = db.query(WarnEntry).filter_by(
+                guild_id=str(interaction.guild_id),
+                user_id=str(member.id)).count()
+            embed = discord.Embed(
+                title='⚠️ Verwarnung',
+                color=discord.Color.orange(),
+            )
+            embed.add_field(name='Nutzer', value=member.mention, inline=True)
+            embed.add_field(name='Warn #', value=str(warn_count), inline=True)
+            embed.add_field(name='Grund', value=grund, inline=False)
+            embed.set_footer(text=f'Von {interaction.user.display_name}')
+            await interaction.response.send_message(embed=embed)
+        finally:
+            db.close()
+
+    @mod_group.command(name='checkwarns', description='Zeigt die Warnliste eines Nutzers')
+    @app_commands.describe(member='Der Nutzer')
+    async def checkwarns_cmd(interaction: discord.Interaction, member: discord.Member):
+        if not await _is_admin(interaction):
+            await interaction.response.send_message('❌ Keine Berechtigung.', ephemeral=True)
+            return
+        db = get_session()
+        try:
+            warns = db.query(WarnEntry).filter_by(
+                guild_id=str(interaction.guild_id),
+                user_id=str(member.id)).all()
+            embed = discord.Embed(
+                title=f'Warnliste — {member.display_name}',
+                color=discord.Color.red() if warns else discord.Color.green(),
+            )
+            if not warns:
+                embed.description = '✅ Keine Verwarnungen vorhanden.'
+            else:
+                embed.description = f'**{len(warns)} Verwarnung(en)**'
+                for i, w in enumerate(warns, 1):
+                    mod = interaction.guild.get_member(int(w.moderator_id))
+                    mod_name = mod.display_name if mod else f'ID {w.moderator_id}'
+                    embed.add_field(
+                        name=f'#{i} — {w.created_at}',
+                        value=f'**Grund:** {w.reason}\n**Von:** {mod_name}',
+                        inline=False,
+                    )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        finally:
+            db.close()
 
     @mod_group.command(name='timeout', description='Gibt einem Nutzer einen Timeout')
     @app_commands.describe(member='Der Nutzer', dauer='z.B. 10m, 2h, 1d (max 28d)', grund='Grund (optional)')

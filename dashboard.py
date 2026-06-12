@@ -8,7 +8,7 @@ from database import (init_db, get_session,
                       SelfRoleMessage, SelfRoleButton,
                       LevelConfig, UserLevel, LevelRole,
                       XpMultiplierRole, XpMultiplierChannel, NoXpChannel, NoXpRole,
-                      BotAdminConfig)
+                      BotAdminConfig, WarnEntry, BadWordConfig)
 
 load_dotenv()
 init_db()
@@ -279,6 +279,7 @@ def dashboard(guild_id):
         no_xp_ro  = db.query(NoXpRole).filter_by(guild_id=guild_id).all()
 
         bot_admins = db.query(BotAdminConfig).filter_by(guild_id=guild_id).all()
+        bad_words  = db.query(BadWordConfig).filter_by(guild_id=guild_id).all()
 
         return render_template('dashboard.html',
             user=session['user'],
@@ -300,6 +301,7 @@ def dashboard(guild_id):
             no_xp_ro=[{'id': r.id, 'role_id': r.role_id} for r in no_xp_ro],
             cmd_channels=lv_cfg.cmd_channels if lv_cfg else [],
             bot_admins=[{'id': a.id, 'user_id': a.user_id} for a in bot_admins],
+            bad_words=[{'id': w.id, 'word': w.word, 'enabled': w.enabled} for w in bad_words],
         )
     finally:
         db.close()
@@ -811,6 +813,56 @@ def api_admin_del(gid, aid):
             db.delete(entry)
             db.commit()
         return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+# ── API: Moderation / Bad-Words ───────────────────────────────────────────────
+
+@app.route('/api/server/<gid>/moderation/badwords', methods=['POST'])
+def api_bw_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    word = (request.json or {}).get('word', '').strip().lower()
+    if not word:
+        return jsonify({'error': 'Kein Wort angegeben'}), 400
+    db = get_session()
+    try:
+        exists = db.query(BadWordConfig).filter_by(guild_id=gid, word=word).first()
+        if exists:
+            return jsonify({'error': 'Bereits vorhanden'}), 409
+        entry = BadWordConfig(guild_id=gid, word=word, enabled=True)
+        db.add(entry)
+        db.commit()
+        return jsonify({'ok': True, 'id': entry.id})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/moderation/badwords/<int:wid>', methods=['DELETE'])
+def api_bw_del(gid, wid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        entry = db.query(BadWordConfig).filter_by(id=wid, guild_id=gid).first()
+        if entry:
+            db.delete(entry)
+            db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/moderation/badwords/<int:wid>/toggle', methods=['POST'])
+def api_bw_toggle(gid, wid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        entry = db.query(BadWordConfig).filter_by(id=wid, guild_id=gid).first()
+        if not entry:
+            return jsonify({'error': 'Nicht gefunden'}), 404
+        entry.enabled = not entry.enabled
+        db.commit()
+        return jsonify({'ok': True, 'enabled': entry.enabled})
     finally:
         db.close()
 

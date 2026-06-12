@@ -486,6 +486,59 @@ async function removeBotAdmin(gid, id) {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
+/* ── Moderation: Bad-Words ───────────────────────────────────── */
+
+async function addBadWord(gid) {
+  const input = document.getElementById('bw-input');
+  const word = input.value.trim().toLowerCase();
+  if (!word) { showToast('Bitte ein Wort eingeben.', 'error'); return; }
+  try {
+    const res = await api('POST', `/api/server/${gid}/moderation/badwords`, { word });
+    document.getElementById('bw-empty')?.remove();
+    const chip = document.createElement('span');
+    chip.className = 'role-chip';
+    chip.id = `bw-entry-${res.id}`;
+    chip.title = 'Klicken zum Deaktivieren';
+    chip.style.cursor = 'pointer';
+    chip.innerHTML = `<span onclick="toggleBadWord('${gid}',${res.id})">${_esc(word)}</span><button class="chip-remove" onclick="removeBadWord('${gid}',${res.id})">×</button>`;
+    document.getElementById('bw-list').appendChild(chip);
+    input.value = '';
+    showToast('Bad-Word hinzugefügt!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function removeBadWord(gid, id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/moderation/badwords/${id}`);
+    document.getElementById(`bw-entry-${id}`)?.remove();
+    if (!document.querySelectorAll('#bw-list .role-chip').length) {
+      const empty = document.createElement('span');
+      empty.id = 'bw-empty';
+      empty.className = 'text-muted';
+      empty.style.fontSize = '13px';
+      empty.textContent = 'Noch keine Bad-Words eingetragen.';
+      document.getElementById('bw-list').appendChild(empty);
+    }
+    showToast('Bad-Word entfernt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function toggleBadWord(gid, id) {
+  try {
+    const res = await api('POST', `/api/server/${gid}/moderation/badwords/${id}/toggle`);
+    const chip = document.getElementById(`bw-entry-${id}`);
+    if (!chip) return;
+    if (res.enabled) {
+      chip.classList.remove('chip-disabled');
+      chip.title = 'Klicken zum Deaktivieren';
+    } else {
+      chip.classList.add('chip-disabled');
+      chip.title = 'Klicken zum Aktivieren';
+    }
+    showToast(res.enabled ? 'Bad-Word aktiviert.' : 'Bad-Word deaktiviert.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
 /* ── Self-Roles: Drag & Drop Sortierung ──────────────────────── */
 function initSrDragDrop() {
   const list = document.getElementById('selfroles-list');
