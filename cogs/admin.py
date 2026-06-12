@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from datetime import timedelta
 from discord import app_commands
 from discord.ext import commands
-from database import get_session, BotAdminConfig, UserLevel, WarnEntry, BadWordConfig
+from database import get_session, BotAdminConfig, UserLevel, WarnEntry, BadWordConfig, WarnPunishment
 
 _XP_TABLE = [40, 60, 70, 80, 90, 140, 165, 190, 200, 205, 280, 305, 325, 340, 350]
 
@@ -21,6 +21,38 @@ def _parse_duration(s: str) -> timedelta | None:
     n, unit = int(m.group(1)), m.group(2)
     return {'s': timedelta(seconds=n), 'm': timedelta(minutes=n),
             'h': timedelta(hours=n),   'd': timedelta(days=min(n, 28))}[unit]
+
+async def _apply_punishment(guild: discord.Guild, member: discord.Member, warn_count: int):
+    """Führt die konfigurierte Strafe für die aktuelle Warn-Stufe aus, falls vorhanden."""
+    db = get_session()
+    try:
+        punishment = db.query(WarnPunishment).filter_by(
+            guild_id=str(guild.id), warn_count=warn_count).first()
+        if not punishment:
+            return None
+        action = punishment.action
+        try:
+            if action == 'timeout':
+                delta = _parse_duration(punishment.timeout_duration or '1h')
+                if delta:
+                    await member.timeout(delta, reason=f'Auto-Strafe: {warn_count}. Warn')
+            elif action == 'kick':
+                await member.kick(reason=f'Auto-Strafe: {warn_count}. Warn')
+            elif action == 'ban':
+                await member.ban(reason=f'Auto-Strafe: {warn_count}. Warn', delete_message_days=0)
+        except discord.Forbidden:
+            pass
+        return action
+    finally:
+        db.close()
+
+
+def _punishment_text(action: str | None) -> str:
+    if action == 'timeout': return ' — Timeout erteilt'
+    if action == 'kick':    return ' — vom Server gekickt'
+    if action == 'ban':     return ' — dauerhaft gebannt'
+    return ''
+
 
 async def _is_admin(interaction: discord.Interaction) -> bool:
     if interaction.user.id == interaction.guild.owner_id:
@@ -69,10 +101,12 @@ class AdminCog(commands.Cog):
             warn_count = db.query(WarnEntry).filter_by(
                 guild_id=str(message.guild.id),
                 user_id=str(message.author.id)).count()
+            action = await _apply_punishment(message.guild, message.author, warn_count)
+            action_text = _punishment_text(action)
             try:
                 await message.channel.send(
                     f'⚠️ {message.author.mention} deine Nachricht enthielt ein verbotenes Wort '
-                    f'und wurde entfernt. (Warn {warn_count})',
+                    f'und wurde entfernt. (Warn {warn_count}{action_text})',
                     delete_after=8,
                 )
             except discord.Forbidden:
@@ -211,17 +245,20 @@ async def setup(bot):
             warn_count = db.query(WarnEntry).filter_by(
                 guild_id=str(interaction.guild_id),
                 user_id=str(member.id)).count()
-            embed = discord.Embed(
-                title='⚠️ Verwarnung',
-                color=discord.Color.orange(),
-            )
-            embed.add_field(name='Nutzer', value=member.mention, inline=True)
-            embed.add_field(name='Warn #', value=str(warn_count), inline=True)
-            embed.add_field(name='Grund', value=grund, inline=False)
-            embed.set_footer(text=f'Von {interaction.user.display_name}')
-            await interaction.response.send_message(embed=embed)
         finally:
             db.close()
+        action = await _apply_punishment(interaction.guild, member, warn_count)
+        embed = discord.Embed(
+            title='⚠️ Verwarnung',
+            color=discord.Color.orange(),
+        )
+        embed.add_field(name='Nutzer', value=member.mention, inline=True)
+        embed.add_field(name='Warn #', value=str(warn_count), inline=True)
+        embed.add_field(name='Grund', value=grund, inline=False)
+        if action:
+            embed.add_field(name='Automatische Strafe', value=_punishment_text(action).strip(' —'), inline=False)
+        embed.set_footer(text=f'Von {interaction.user.display_name}')
+        await interaction.response.send_message(embed=embed)
 
     @mod_group.command(name='checkwarns', description='Zeigt die Warnliste eines Nutzers')
     @app_commands.describe(member='Der Nutzer')

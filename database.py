@@ -182,6 +182,16 @@ class BadWordConfig(Base):
     __table_args__ = (UniqueConstraint('guild_id', 'word', name='uq_bad_word'),)
 
 
+class WarnPunishment(Base):
+    __tablename__ = 'warn_punishments'
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    guild_id         = Column(String, nullable=False)
+    warn_count       = Column(Integer, nullable=False)
+    action           = Column(String, nullable=False)   # timeout / kick / ban
+    timeout_duration = Column(String, nullable=True)    # z.B. "1h", "1d"
+    __table_args__ = (UniqueConstraint('guild_id', 'warn_count', name='uq_warn_punishment'),)
+
+
 def _migrate():
     from sqlalchemy import text, inspect as sa_inspect
 

@@ -539,6 +539,61 @@ async function toggleBadWord(gid, id) {
   } catch(e) { showToast(e.message, 'error'); }
 }
 
+/* ── Moderation: Warn-Punishments ────────────────────────────── */
+
+function toggleWpDuration() {
+  const action = document.getElementById('wp-action').value;
+  document.getElementById('wp-duration-wrap').style.display = action === 'timeout' ? '' : 'none';
+}
+
+async function addWarnPunishment(gid) {
+  const count    = parseInt(document.getElementById('wp-count').value);
+  const action   = document.getElementById('wp-action').value;
+  const duration = document.getElementById('wp-duration').value.trim();
+  if (!count || count < 1) { showToast('Bitte eine gültige Warn-Anzahl eingeben.', 'error'); return; }
+  if (action === 'timeout' && !duration) { showToast('Bitte eine Dauer für den Timeout angeben.', 'error'); return; }
+  try {
+    const res = await api('POST', `/api/server/${gid}/moderation/warn-punishments`, {
+      warn_count: count, action, timeout_duration: action === 'timeout' ? duration : null
+    });
+    document.getElementById('wp-empty')?.remove();
+    const actionLabel = action === 'timeout'
+      ? `⏱ Timeout${duration ? ` (${duration})` : ''}`
+      : action === 'kick' ? '👢 Kick' : '🔨 Ban';
+    const row = document.createElement('div');
+    row.className = 'wp-row';
+    row.id = `wp-entry-${res.id}`;
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px';
+    row.innerHTML = `<span class="badge badge-level" style="min-width:70px;text-align:center">Warn ${count}</span><span class="wp-action-badge wp-action-${action}">${actionLabel}</span><button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="removeWarnPunishment('${gid}',${res.id})">Entfernen</button>`;
+    const list = document.getElementById('wp-list');
+    const rows = Array.from(list.querySelectorAll('.wp-row'));
+    const after = rows.find(r => {
+      const n = parseInt(r.querySelector('.badge-level')?.textContent?.replace('Warn ', '') || '0');
+      return n > count;
+    });
+    after ? list.insertBefore(row, after) : list.appendChild(row);
+    document.getElementById('wp-count').value = '';
+    document.getElementById('wp-duration').value = '';
+    showToast('Warn-Stufe hinzugefügt!');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function removeWarnPunishment(gid, id) {
+  try {
+    await api('DELETE', `/api/server/${gid}/moderation/warn-punishments/${id}`);
+    document.getElementById(`wp-entry-${id}`)?.remove();
+    if (!document.querySelectorAll('#wp-list .wp-row').length) {
+      const empty = document.createElement('span');
+      empty.id = 'wp-empty';
+      empty.className = 'text-muted';
+      empty.style.fontSize = '13px';
+      empty.textContent = 'Noch keine Stufen konfiguriert.';
+      document.getElementById('wp-list').appendChild(empty);
+    }
+    showToast('Warn-Stufe entfernt.');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
 /* ── Self-Roles: Drag & Drop Sortierung ──────────────────────── */
 function initSrDragDrop() {
   const list = document.getElementById('selfroles-list');

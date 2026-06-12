@@ -8,7 +8,7 @@ from database import (init_db, get_session,
                       SelfRoleMessage, SelfRoleButton,
                       LevelConfig, UserLevel, LevelRole,
                       XpMultiplierRole, XpMultiplierChannel, NoXpChannel, NoXpRole,
-                      BotAdminConfig, WarnEntry, BadWordConfig)
+                      BotAdminConfig, WarnEntry, BadWordConfig, WarnPunishment)
 
 load_dotenv()
 init_db()
@@ -279,7 +279,8 @@ def dashboard(guild_id):
         no_xp_ro  = db.query(NoXpRole).filter_by(guild_id=guild_id).all()
 
         bot_admins = db.query(BotAdminConfig).filter_by(guild_id=guild_id).all()
-        bad_words  = db.query(BadWordConfig).filter_by(guild_id=guild_id).all()
+        bad_words      = db.query(BadWordConfig).filter_by(guild_id=guild_id).all()
+        warn_punishments = db.query(WarnPunishment).filter_by(guild_id=guild_id).order_by(WarnPunishment.warn_count).all()
 
         return render_template('dashboard.html',
             user=session['user'],
@@ -302,6 +303,10 @@ def dashboard(guild_id):
             cmd_channels=lv_cfg.cmd_channels if lv_cfg else [],
             bot_admins=[{'id': a.id, 'user_id': a.user_id} for a in bot_admins],
             bad_words=[{'id': w.id, 'word': w.word, 'enabled': w.enabled} for w in bad_words],
+            warn_punishments=[{
+                'id': p.id, 'warn_count': p.warn_count,
+                'action': p.action, 'timeout_duration': p.timeout_duration or ''
+            } for p in warn_punishments],
         )
     finally:
         db.close()
@@ -818,6 +823,45 @@ def api_admin_del(gid, aid):
 
 
 # ── API: Moderation / Bad-Words ───────────────────────────────────────────────
+
+@app.route('/api/server/<gid>/moderation/warn-punishments', methods=['POST'])
+def api_wp_add(gid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    data = request.json or {}
+    warn_count = data.get('warn_count')
+    action     = data.get('action', '').strip()
+    timeout_dur = data.get('timeout_duration', '').strip() or None
+    if not isinstance(warn_count, int) or warn_count < 1:
+        return jsonify({'error': 'Ungültige Warn-Anzahl'}), 400
+    if action not in ('timeout', 'kick', 'ban'):
+        return jsonify({'error': 'Ungültige Aktion'}), 400
+    db = get_session()
+    try:
+        exists = db.query(WarnPunishment).filter_by(guild_id=gid, warn_count=warn_count).first()
+        if exists:
+            return jsonify({'error': f'Für Warn {warn_count} existiert bereits eine Strafe'}), 409
+        entry = WarnPunishment(guild_id=gid, warn_count=warn_count,
+                               action=action, timeout_duration=timeout_dur)
+        db.add(entry)
+        db.commit()
+        return jsonify({'ok': True, 'id': entry.id})
+    finally:
+        db.close()
+
+
+@app.route('/api/server/<gid>/moderation/warn-punishments/<int:pid>', methods=['DELETE'])
+def api_wp_del(gid, pid):
+    if _require_login(): return jsonify({'error': 'Unauthorized'}), 401
+    db = get_session()
+    try:
+        entry = db.query(WarnPunishment).filter_by(id=pid, guild_id=gid).first()
+        if entry:
+            db.delete(entry)
+            db.commit()
+        return jsonify({'ok': True})
+    finally:
+        db.close()
+
 
 @app.route('/api/server/<gid>/moderation/badwords', methods=['POST'])
 def api_bw_add(gid):

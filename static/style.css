@@ -451,6 +451,15 @@ code {
   border-color: rgba(237,66,69,.3);
   opacity: 0.75;
 }
+.wp-action-badge {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+.wp-action-timeout { background: rgba(250,166,26,.15); color: #faa61a; border: 1px solid rgba(250,166,26,.3); }
+.wp-action-kick    { background: rgba(88,101,242,.15); color: #8891f2; border: 1px solid rgba(88,101,242,.3); }
+.wp-action-ban     { background: rgba(237,66,69,.15);  color: #f38ba8; border: 1px solid rgba(237,66,69,.3);  }
 
 /* ── Self-Role Cards ────────────────────────────────────────── */
 .sr-card {

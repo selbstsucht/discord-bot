@@ -606,6 +606,54 @@
           </div>
         </div>
       </div>
+
+      <div class="card" style="margin-top:18px">
+        <div class="section-header" style="padding:0 0 10px 0;border-bottom:1px solid var(--border);margin-bottom:4px">
+          <h3 style="font-size:15px;font-weight:600;margin:0">Automatische Strafen bei Warn-Stufen</h3>
+          <p class="text-muted" style="font-size:13px;margin:4px 0 0">Lege fest, was bei der X-ten Verwarnung automatisch passiert.</p>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Neue Stufe hinzufügen</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:12px;color:var(--text-muted)">Bei Warn #</span>
+              <input class="input" id="wp-count" type="number" min="1" max="100" placeholder="z.B. 3" style="width:90px">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:12px;color:var(--text-muted)">Aktion</span>
+              <select class="select" id="wp-action" onchange="toggleWpDuration()" style="width:130px">
+                <option value="timeout">Timeout</option>
+                <option value="kick">Kick</option>
+                <option value="ban">Ban</option>
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px" id="wp-duration-wrap">
+              <span style="font-size:12px;color:var(--text-muted)">Dauer</span>
+              <input class="input" id="wp-duration" placeholder="z.B. 1h, 1d" style="width:100px">
+            </div>
+            <button class="btn btn-primary" onclick="addWarnPunishment('{{ guild_id }}')" style="margin-bottom:1px">Hinzufügen</button>
+          </div>
+          <p class="hint" style="margin-top:6px">Dauer nur für Timeout: <code>30m</code>, <code>2h</code>, <code>1d</code>, <code>7d</code> (max 28d)</p>
+        </div>
+        <div class="card-row">
+          <label class="field-label">Konfigurierte Stufen</label>
+          <div id="wp-list" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+            {% for p in warn_punishments %}
+            <div class="wp-row" id="wp-entry-{{ p.id }}" style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px">
+              <span class="badge badge-level" style="min-width:70px;text-align:center">Warn {{ p.warn_count }}</span>
+              <span class="wp-action-badge wp-action-{{ p.action }}">
+                {% if p.action == 'timeout' %}⏱ Timeout{% if p.timeout_duration %} ({{ p.timeout_duration }}){% endif %}
+                {% elif p.action == 'kick' %}👢 Kick
+                {% elif p.action == 'ban' %}🔨 Ban{% endif %}
+              </span>
+              <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="removeWarnPunishment('{{ guild_id }}', {{ p.id }})">Entfernen</button>
+            </div>
+            {% else %}
+            <span class="text-muted" id="wp-empty" style="font-size:13px">Noch keine Stufen konfiguriert.</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ── Bot-Admins Tab ──────────────────────────────────── -->
